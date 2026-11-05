@@ -91,6 +91,11 @@ def check_quasistatic(
             if f_max < rep.srf
             else f"f_max is ABOVE the estimated SRF ({f_max / rep.srf:.2f} x)"
         )
+    ratio = coil.length / coil.mean_d
+    if not 0.1 <= ratio <= 50:
+        rep.warnings.append(
+            f"l/D = {ratio:.3g} is outside Medhurst's fitted range (0.1-50); C_self/SRF unreliable"
+        )
     if rep.wire_length_over_lambda > max_electrical_length:
         n_ok = int(max_electrical_length * lam / (coil.wire_length / coil.n_turns))
         rep.warnings.append(

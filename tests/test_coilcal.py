@@ -177,8 +177,10 @@ def test_coupling_and_emf():
 
 # --- SRF / validity ---------------------------------------------------------------------
 def test_quasistatic_report():
-    few = cc.check_quasistatic(typical(3), 1e6)
+    few = cc.check_quasistatic(typical(10), 1e6)
     assert few.ok
+    short = cc.check_quasistatic(typical(3), 1e6)
+    assert any("Medhurst" in w for w in short.warnings)
     many = cc.check_quasistatic(typical(50), 5e6)
     assert not many.ok
     assert many.srf < 5e6
