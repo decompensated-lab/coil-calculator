@@ -121,6 +121,11 @@ class WirePairResult:
         return float(2 * np.pi * freq * -self.c_complex.imag)
 
     @property
+    def conductor_potentials(self) -> ComplexArray:
+        """Potentials [V] of conductors 1 and 2 (V1 − V2 = 1 V; common mode → 0 at ∞)."""
+        return self._v.copy()
+
+    @property
     def centres(self) -> FloatArray:
         return np.array([-self.spacing / 2, self.spacing / 2])
 

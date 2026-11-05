@@ -43,6 +43,26 @@ TIPS = {
     "z0": "Reference impedance of the VNA ports (also their source and load impedance).",
     "p_dbm": "Available source power at port 1. It sets the absolute currents and fields "
     "(incident peak voltage V+ = √(2·Z0·P)). All other ports are terminated in Z0.",
+    # wire pair tab
+    "pair_cond": "Diameter of the bare conductor.",
+    "pair_ins": "Outer diameter over the insulation (Coil64's 'wire diameter with insulation'). "
+    "Equal to the conductor Ø means bare wire.",
+    "pair_material": "Insulation material preset: fills εr and tan δ with typical values around "
+    "1 MHz. Datasheet values vary, so edit εr / tan δ (the preset then shows 'custom').",
+    "pair_eps": "Relative permittivity of the insulation sleeve. Space outside the sleeves is "
+    "air (εr = 1).",
+    "pair_tand": "Dielectric loss tangent of the insulation. The result is an effective tan δ of "
+    "the line, smaller because part of the field is in air, and a shunt conductance G′ = ωC′tanδ.",
+    "pair_same": "Tick to give wire 2 its own conductor, insulation and material. Unticked, "
+    "wire 2 is identical to wire 1.",
+    "pair_ref": "How the spacing is given:\n• insulation surface gap: 0 = sleeves touching.\n"
+    "• centre-to-centre: the distance between the conductor axes (e.g. the coil pitch).\n"
+    "Changing the reference converts the number so the geometry stays the same.",
+    "pair_spacing": "Distance between the wires, measured as set by 'reference'. The sleeves may "
+    "touch but not overlap.",
+    "pair_from_a": "Copy coil A's wire Ø to both conductors (keeping the insulation thickness) "
+    "and set the centre-to-centre spacing to coil A's pitch: the 2-D turn-to-turn problem of "
+    "the coil, without the curvature and the other turns.",
 }
 
 TAB_TIPS = {
@@ -60,6 +80,9 @@ TAB_TIPS = {
     "Transfer A→B": "Open-circuit voltage in B per ampere in A (Z21) compared with the "
     "quasi-static jωM, and the voltage into the chosen load.",
     "VNA": "S-parameters of the selected VNA setup: magnitude (dB), phase and Smith chart.",
+    "Wire pair C": "Stand-alone calculator: capacitance per unit length between two long "
+    "parallel round wires with dielectric insulation, surrounded by air. Exact 2-D multipole "
+    "solution, with field map, C′ vs spacing, and the pair viewed as a two-wire line.",
     "Turn currents": "Current in each turn and voltage at each node for the selected VNA drive. "
     "Near self-resonance the internal current can far exceed the terminal current.",
 }
@@ -87,6 +110,12 @@ on the VNA fixture. Dotted lines are the quasi-DC model.</li>
 selected <i>VNA setup</i>. Port 1 is driven with the chosen power; all ports are terminated in
 Z0.</li>
 </ul>
+<h3>Wire pair C</h3>
+<p>A separate calculator for two long, parallel, insulated wires in air: the capacitance per
+unit length, effective loss tangent, and the pair's impedance and velocity factor as a two-wire line.
+The dielectric sleeve and the surrounding air are both modelled (multipole expansion, exact up to
+series truncation), so the result lies between the bare-wire value and εr times it. It does not
+change the coil model above.</p>
 <h3>Conventions</h3>
 <p>Phasors are peak amplitudes. Positive current circulates counter-clockwise about +z
 (right-hand rule: field along +z inside). Z21 is the open-circuit voltage at B per ampere into

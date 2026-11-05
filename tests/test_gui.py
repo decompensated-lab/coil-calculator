@@ -85,3 +85,41 @@ def test_bz_profiles_match_static_at_low_frequency():
     centre = np.argmin(np.abs(r.line_x))
     on_axis = np.interp(1e-3, r.line_z, r.bz_z.real)
     assert r.bz_x[centre].real == pytest.approx(on_axis, rel=1e-3, abs=0)
+
+
+def test_wire_pair_tab():
+    from coilcal.gui.pair import PairParams, SpacingRef, WireParams, compute_pair, pair_summary_html
+    from coilcal.materials import Material
+
+    r = compute_pair(PairParams(spacing_ref=SpacingRef.CENTRE, spacing_mm=2.0))
+    assert r.res.spacing == pytest.approx(2e-3)
+    assert r.c_bare < r.res.capacitance < r.c_uniform
+    assert np.all(np.diff(r.sweep_exact) < 0)  # C' falls with spacing
+    assert "pF/m" in pair_summary_html(r)
+    # different wires: no single εr for the 'uniform medium' comparison
+    p = PairParams(same=False, w2=WireParams(0.5, 0.5, Material.AIR, 1.0, 0.0))
+    assert compute_pair(p).c_uniform is None
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    w = MainWindow(Params(a=CoilParams(turns=4, wire_d_mm=0.8, pitch_mm=1.7), b_enabled=False))
+    tab = w.pair_tab
+    assert tab.result is not None
+    tab.box1.material.set_value(Material.PVC)
+    assert tab.box1.eps.value() == pytest.approx(3.5)
+    tab.box1.eps.setValue(4.2)  # manual edit -> custom
+    assert tab.box1.material.value() is Material.CUSTOM
+    # changing the reference keeps the geometry
+    s0 = tab.params().centre_spacing()
+    tab.spacing_ref.set_value(SpacingRef.CENTRE)
+    assert tab.params().centre_spacing() == pytest.approx(s0)
+    tab.load_coil_a()
+    p = tab.params()
+    assert p.w1.conductor_d_mm == pytest.approx(0.8)
+    assert p.centre_spacing() == pytest.approx(1.7e-3)
+    assert tab.result is not None and tab.result.res.spacing == pytest.approx(1.7e-3)
+    tab.spacing.setValue(0.1)  # overlapping sleeves -> error shown, no crash
+    tab.recompute()
+    assert "overlap" in tab.status.text()
+    w.tabs.setCurrentWidget(tab)
+    app.processEvents()
+    w.close()

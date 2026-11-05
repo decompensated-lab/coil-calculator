@@ -78,6 +78,33 @@ Not modelled: the former's dielectric (raises C, lowers SRF), proximity effect (
 with `r_factor`), radiation and ground planes/fixtures. Each turn is assumed much shorter than
 a wavelength (true here: 0.47 m against 60 m).
 
+## Insulated wire pair (2-D)
+
+`coilcal.wirepair.pair_capacitance(w1, w2, spacing)` gives the capacitance per unit length
+between two long parallel round conductors, each in a concentric dielectric sleeve, with air
+outside. It uses a multipole expansion with an exact reflection coefficient per harmonic for
+each sleeve, and is exact apart from series truncation. A complex permittivity
+(`Dielectric(eps_r, tan_delta)`, presets in `coilcal.materials.Material`) gives the line's
+effective loss tangent and shunt conductance.
+
+```python
+from coilcal.materials import Dielectric
+from coilcal.wirepair import InsulatedWire, pair_capacitance
+
+w = InsulatedWire(1e-3, 1.5e-3, Dielectric(2.1, 2e-4))  # Ø1 mm in Ø1.5 mm PTFE
+pair_capacitance(w, spacing=1.5e-3).capacitance          # touching: 44.4 pF/m
+```
+
+Checks:
+
+* the closed-form bare pair (to 1e-9);
+* the εr → 1 and εr → ∞ limits;
+* the effective-radius formula b·(a/b)^(1/εr), which becomes exact at large spacing;
+* an independent panel BEM (about 1e-3, limited by the BEM).
+
+The GUI's **Wire pair C** tab wraps it with a field map, C′ vs spacing, and the pair viewed
+as a two-wire line (Z0, velocity factor). The coil model does not use it yet.
+
 ## Caveats at 5 MHz with a 150 mm former
 
 Each turn is ~0.47 m of wire (λ = 60 m at 5 MHz). `check_quasistatic` shows that:
