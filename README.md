@@ -74,8 +74,46 @@ Checks: the low-frequency limit reproduces the static L, M and R to 1e-6. The ca
 solver matches an isolated torus and the two-wire line formula to about 1e-4. The network is
 reciprocal.
 
-Not modelled: the former's dielectric (raises C, lowers SRF), proximity effect (approximate it
-with `r_factor`), radiation and ground planes/fixtures. Each turn is assumed much shorter than
+### Insulation and former dielectrics
+
+```python
+from coilcal import Dielectric, Former, Material, SolenoidCoil
+
+coil = SolenoidCoil(
+    wire_d=1.0e-3, pitch=2.0e-3, former_d=0.150, n_turns=10,
+    insulation_d=1.06e-3, insulation=Material.ENAMEL.dielectric,      # εr 3.6, tanδ 0.01
+    former=Former(wall=3e-3, dielectric=Material.PMMA.dielectric, overhang=10e-3),
+)
+```
+
+Both enter the turn-to-turn capacitance matrix; inductance is unaffected.
+
+* **Insulation:** eliminated exactly. Each wire is locally 2-D, so the sleeve becomes a
+  per-harmonic boundary condition on its outer surface.
+* **Former:** a dielectric tube modelled with boundary elements. Panels on its outer, inner
+  and end faces carry bound charge.
+* **Loss:** a lossy dielectric (`tan_delta > 0`) makes C complex, so the network includes the
+  dielectric loss.
+
+Checks:
+
+* Insulated turns of a very large coil match the exact 2-D insulated pair to 2e-3, including
+  touching turns. The number of charges per turn grows automatically for tight windings.
+* With a former, they match an independent 2-D boundary-element reference to 0.1–0.5%. That
+  includes enamelled wire touching the former.
+
+Typical effect on the self-resonant frequency, for 1 mm enamelled wire on a 150 mm, 3 mm-wall
+PMMA former:
+
+| turns | pitch 2 mm | close-wound |
+|---|---|---|
+| 10 | −10% | −22% |
+| 30 | −5% | −14% |
+
+Close-wound coils with many turns are slow: about 30 s for 100 turns.
+
+Not modelled: proximity effect (approximate it with `r_factor`), radiation, ground
+planes/fixtures, and other coils' formers when coils are not coaxial. Each turn is assumed much shorter than
 a wavelength (true here: 0.47 m against 60 m).
 
 ## Insulated wire pair (2-D)

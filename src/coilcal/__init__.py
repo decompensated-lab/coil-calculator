@@ -3,7 +3,7 @@
 from .capacitance import capacitance_matrix, isolated_capacitance
 from .circuit import CoilNetwork, NetworkResult
 from .field import B_axis_rings, B_axis_sheet, field_B, to_magpylib
-from .geometry import SolenoidCoil
+from .geometry import Former, SolenoidCoil
 from .inductance import (
     ac_resistance,
     nagaoka,
@@ -13,6 +13,7 @@ from .inductance import (
     wheeler_inductance,
 )
 from .loops import loop_self_inductance, mutual_coaxial, mutual_rings, skin_depth
+from .materials import Dielectric, Material
 from .mutual import (
     coupling_coefficient,
     flux_linkage,
@@ -27,6 +28,9 @@ __all__ = [
     "B_axis_rings",
     "B_axis_sheet",
     "CoilNetwork",
+    "Dielectric",
+    "Former",
+    "Material",
     "NetworkResult",
     "QuasiStaticReport",
     "SolenoidCoil",

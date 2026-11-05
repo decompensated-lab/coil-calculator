@@ -2,12 +2,41 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+from .materials import Dielectric
 from .types import ArrayLike, FloatArray, Handedness
+
+
+@dataclass(frozen=True, slots=True)
+class Former:
+    """Dielectric coil former: a tube under the winding (coaxial with the coil).
+
+    Its outer diameter is the coil's ``former_d``. Only its permittivity matters (it enters
+    the turn capacitance); a former with ``eps_r = 1`` is the same as no former.
+
+    Parameters
+    ----------
+    wall
+        Radial wall thickness [m]; must be less than the former radius.
+    dielectric
+        Material of the tube.
+    overhang
+        How far the tube extends beyond the winding (N·pitch long) at each end [m].
+    """
+
+    wall: float
+    dielectric: Dielectric = field(default_factory=Dielectric)
+    overhang: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.wall > 0:
+            raise ValueError(f"former wall must be > 0, got {self.wall}")
+        if not self.overhang >= 0:
+            raise ValueError(f"former overhang must be >= 0, got {self.overhang}")
 
 
 @dataclass(frozen=True)
@@ -30,10 +59,14 @@ class SolenoidCoil:
     orientation
         Rotation taking the coil's local frame (axis = local +z) to the global frame.
     insulation_d
-        Outer diameter of insulated wire [m]; defaults to ``wire_d``. Only affects
-        where the wire centre sits relative to the former.
+        Outer diameter of insulated wire [m]; defaults to ``wire_d`` (bare). Sets where the
+        wire centre sits relative to the former and the thickness of the insulation sleeve.
     handedness
         :class:`Handedness` of the helix (only used by the helix field model).
+    insulation
+        :class:`Dielectric` of the wire insulation (between ``wire_d`` and ``insulation_d``).
+    former
+        Optional dielectric :class:`Former`; ``None`` = air-cored with no former material.
 
     Convention: positive current circulates counter-clockwise about the local +z axis,
     so a positive current produces +z field inside the coil.
@@ -47,6 +80,8 @@ class SolenoidCoil:
     orientation: Rotation = field(default_factory=Rotation.identity)
     insulation_d: float | None = None
     handedness: Handedness = Handedness.RIGHT
+    insulation: Dielectric = field(default_factory=Dielectric)
+    former: Former | None = None
 
     def __post_init__(self) -> None:
         # normalise loosely typed inputs (lists, None, ints) and validate
@@ -64,6 +99,15 @@ class SolenoidCoil:
         if self.pitch < self.outer_wire_d:
             raise ValueError(f"pitch ({self.pitch}) < wire outer diameter ({self.outer_wire_d})")
         object.__setattr__(self, "handedness", Handedness(self.handedness))
+        if self.insulation_d is not None and self.insulation_d < self.wire_d:
+            raise ValueError(f"insulation_d ({self.insulation_d}) < wire_d ({self.wire_d})")
+        if not isinstance(self.insulation, Dielectric):
+            raise TypeError("insulation must be a Dielectric")
+        if self.former is not None and not self.former.wall < self.former_d / 2:
+            raise ValueError(
+                f"former wall ({self.former.wall}) must be less than the former radius "
+                f"({self.former_d / 2})"
+            )
 
     # --- derived geometry -------------------------------------------------------------
     @property
@@ -73,6 +117,22 @@ class SolenoidCoil:
     @property
     def wire_radius(self) -> float:
         return self.wire_d / 2
+
+    @property
+    def outer_radius(self) -> float:
+        """Outer radius of the (insulated) wire [m]."""
+        return self.outer_wire_d / 2
+
+    @property
+    def has_dielectrics(self) -> bool:
+        """True if the insulation or the former changes the electrostatics."""
+        ins = self.outer_wire_d > self.wire_d and self.insulation.eps_complex != 1
+        fmr = self.former is not None and self.former.dielectric.eps_complex != 1
+        return ins or fmr
+
+    def without_dielectrics(self) -> SolenoidCoil:
+        """Same geometry (incl. wire position) with vacuum insulation and no former."""
+        return replace(self, insulation=Dielectric(), former=None)
 
     @property
     def mean_radius(self) -> float:
@@ -138,13 +198,8 @@ class SolenoidCoil:
         self, position: ArrayLike | None = None, orientation: Rotation | None = None
     ) -> SolenoidCoil:
         """Copy of this coil with a new pose."""
-        return SolenoidCoil(
-            wire_d=self.wire_d,
-            pitch=self.pitch,
-            former_d=self.former_d,
-            n_turns=self.n_turns,
+        return replace(
+            self,
             position=self.position if position is None else np.asarray(position, dtype=float),
             orientation=self.orientation if orientation is None else orientation,
-            insulation_d=self.insulation_d,
-            handedness=self.handedness,
         )

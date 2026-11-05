@@ -121,7 +121,7 @@ class CoilNetwork:
         coupling: Coupling | str = Coupling.FULL,
         r_factor: float = 1.0,
         rho: float = RHO_CU,
-        n_sub: int = 16,
+        n_sub: int | None = None,
         ports: Sequence[Port | tuple[Terminal, Terminal]] | None = None,
     ) -> None:
         self.coils = list(coils)
