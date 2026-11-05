@@ -62,5 +62,5 @@ def test_driven_currents_consistent_with_s():
     a1 = vp / np.sqrt(50)
     assert np.allclose(b2 / a1, s[:, 1, 0])
     # first turn of A carries the port-1 current up to capacitive leakage at the terminal
-    assert abs(i_turn[0, 0]) == pytest.approx(abs(i_port[0, 0]), rel=1e-2)
+    assert abs(i_turn[0, 0]) == pytest.approx(abs(i_port[0, 0]), rel=1e-2, abs=0)
     assert np.allclose(driven_port_currents(res.z, [2 * vp, 0]), i_port)

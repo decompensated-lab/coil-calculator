@@ -84,4 +84,4 @@ def test_bz_profiles_match_static_at_low_frequency():
     assert np.isnan(r.bz_x).any()
     centre = np.argmin(np.abs(r.line_x))
     on_axis = np.interp(1e-3, r.line_z, r.bz_z.real)
-    assert r.bz_x[centre].real == pytest.approx(on_axis, rel=1e-3)
+    assert r.bz_x[centre].real == pytest.approx(on_axis, rel=1e-3, abs=0)

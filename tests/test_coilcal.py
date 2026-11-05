@@ -44,14 +44,16 @@ def test_field_follows_pose():
     c = typical(8, position=[0.01, 0.02, 0.03], orientation=rot)
     b = cc.field_B(c, c.position)
     assert np.allclose(b / np.linalg.norm(b), c.axis)
-    assert np.linalg.norm(b) == pytest.approx(cc.B_axis_rings(c, 0.0), rel=1e-10)
+    assert np.linalg.norm(b) == pytest.approx(cc.B_axis_rings(c, 0.0), rel=1e-10, abs=0)
 
 
 def test_far_field_dipole():
     c = typical(10)
     z = 5.0
     m = c.n_turns * np.pi * c.mean_radius**2
-    assert cc.field_B(c, [0, 0, z])[2] == pytest.approx(mu_0 * m / (2 * np.pi * z**3), rel=1e-3)
+    assert cc.field_B(c, [0, 0, z])[2] == pytest.approx(
+        mu_0 * m / (2 * np.pi * z**3), rel=1e-3, abs=0
+    )
 
 
 # --- loop primitives --------------------------------------------------------------------
@@ -82,10 +84,12 @@ def test_mutual_rings_matches_maxwell_coaxial():
 def test_internal_inductance_limits():
     a = 0.5e-3
     assert internal_inductance_per_length(a, None) == pytest.approx(mu_0 / (8 * np.pi))
-    assert internal_inductance_per_length(a, 10.0) == pytest.approx(mu_0 / (8 * np.pi), rel=1e-6)
+    assert internal_inductance_per_length(a, 10.0) == pytest.approx(
+        mu_0 / (8 * np.pi), rel=1e-6, abs=0
+    )
     f = 1e9
     hf = mu_0 * cc.skin_depth(f) / (4 * np.pi * a)
-    assert internal_inductance_per_length(a, f) == pytest.approx(hf, rel=1e-2)
+    assert internal_inductance_per_length(a, f) == pytest.approx(hf, rel=1e-2, abs=0)
 
 
 # --- self inductance --------------------------------------------------------------------
@@ -98,12 +102,14 @@ def test_nagaoka_known_values():
 @pytest.mark.parametrize("freq", [None, 5e6])
 def test_self_inductance_vs_rosa(n, freq):
     c = typical(n)
-    assert cc.self_inductance(c, freq) == pytest.approx(cc.rosa_inductance(c, freq), rel=1e-4)
+    assert cc.self_inductance(c, freq) == pytest.approx(
+        cc.rosa_inductance(c, freq), rel=1e-4, abs=0
+    )
 
 
 def test_self_inductance_vs_wheeler_long_coil():
     c = typical(100)  # l/D ~ 1.3, Wheeler good to ~1 % here
-    assert cc.self_inductance(c) == pytest.approx(cc.wheeler_inductance(c), rel=0.02)
+    assert cc.self_inductance(c) == pytest.approx(cc.wheeler_inductance(c), rel=0.02, abs=0)
 
 
 def test_hf_inductance_lower_than_dc():
@@ -132,8 +138,8 @@ def test_mutual_general_vs_flux_and_reciprocity(pos, euler):
     a = typical(10)
     b = typical(8, position=pos, orientation=R.from_euler("xy", euler, degrees=True))
     m = cc.mutual_inductance(a, b)
-    assert m == pytest.approx(cc.mutual_inductance(a, b, method="flux"), rel=1e-5)
-    assert m == pytest.approx(cc.mutual_inductance(b, a), rel=1e-9)
+    assert m == pytest.approx(cc.mutual_inductance(a, b, method="flux"), rel=1e-5, abs=0)
+    assert m == pytest.approx(cc.mutual_inductance(b, a), rel=1e-9, abs=0)
 
 
 def test_mutual_zero_by_symmetry():
@@ -147,7 +153,9 @@ def test_mutual_general_path_equals_coaxial_path():
     a = typical(10)
     b = typical(6, position=[0, 0, 0.05])
     tiny = b.moved(orientation=R.from_euler("x", 1e-9))  # forces general path
-    assert cc.mutual_inductance(a, tiny) == pytest.approx(cc.mutual_inductance(a, b), rel=1e-7)
+    assert cc.mutual_inductance(a, tiny) == pytest.approx(
+        cc.mutual_inductance(a, b), rel=1e-7, abs=0
+    )
 
 
 def test_mutual_sign_flip_and_helix_flux():
@@ -159,7 +167,7 @@ def test_mutual_sign_flip_and_helix_flux():
     m_helix = cc.mutual_inductance(
         a, b, method="flux", model="helix", n_r=16, n_phi=16, pts_per_turn=90
     )
-    assert m_helix == pytest.approx(cc.mutual_inductance(a, b), rel=2e-3)
+    assert m_helix == pytest.approx(cc.mutual_inductance(a, b), rel=2e-3, abs=0)
 
 
 def test_coupling_and_emf():
@@ -172,7 +180,7 @@ def test_coupling_and_emf():
     assert v == pytest.approx(-1j * 2 * np.pi * 1e6 * m)
     # loaded with huge impedance -> open circuit EMF
     v_oc = cc.induced_voltage_loaded(a, b, 1.0, 1e6, z_load=1e12, m=m)
-    assert v_oc == pytest.approx(v, rel=1e-6)
+    assert v_oc == pytest.approx(v, rel=1e-6, abs=0)
 
 
 # --- SRF / validity ---------------------------------------------------------------------

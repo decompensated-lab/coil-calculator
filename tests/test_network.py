@@ -17,7 +17,7 @@ def test_torus_capacitance():
     c = typical(1)
     r, a = c.mean_radius, c.wire_radius
     thin = 4 * np.pi**2 * epsilon_0 * r / np.log(8 * r / a)
-    assert isolated_capacitance(c) == pytest.approx(thin, rel=1e-3)
+    assert isolated_capacitance(c) == pytest.approx(thin, rel=1e-3, abs=0)
 
 
 @pytest.mark.parametrize("pitch", [1.2e-3, 2e-3, 4e-3])
@@ -26,7 +26,7 @@ def test_adjacent_turns_vs_two_wire_line(pitch):
     p = np.linalg.inv(capacitance_matrix([c]))
     c_diff = 1 / (p[0, 0] + p[1, 1] - 2 * p[0, 1])
     two_wire = 2 * np.pi * c.mean_radius * np.pi * epsilon_0 / np.arccosh(pitch / c.wire_d)
-    assert c_diff == pytest.approx(two_wire, rel=1e-3)
+    assert c_diff == pytest.approx(two_wire, rel=1e-3, abs=0)
 
 
 def test_capacitance_matrix_properties():
@@ -57,11 +57,11 @@ def test_low_frequency_limit_matches_static(ground):
     net = CoilNetwork([a, b], ground=ground)
     f = 1e3
     r = net.solve([f])
-    assert r.effective_inductance(0)[0] == pytest.approx(cc.self_inductance(a, f), rel=1e-6)
-    assert r.effective_inductance(1)[0] == pytest.approx(cc.self_inductance(b, f), rel=1e-6)
+    assert r.effective_inductance(0)[0] == pytest.approx(cc.self_inductance(a, f), rel=1e-6, abs=0)
+    assert r.effective_inductance(1)[0] == pytest.approx(cc.self_inductance(b, f), rel=1e-6, abs=0)
     zm = r.transfer_impedance(1, 0)[0] / (2j * np.pi * f)
-    assert zm.real == pytest.approx(cc.mutual_inductance(a, b), rel=1e-6)
-    assert r.z_in(0)[0].real == pytest.approx(cc.ac_resistance(a, f), rel=1e-4)
+    assert zm.real == pytest.approx(cc.mutual_inductance(a, b), rel=1e-6, abs=0)
+    assert r.z_in(0)[0].real == pytest.approx(cc.ac_resistance(a, f), rel=1e-4, abs=0)
 
 
 def test_reciprocity_and_tilted_pair():
@@ -88,7 +88,7 @@ def test_srf_is_parallel_resonance_and_in_ballpark():
     z = net.solve([0.98 * srf, srf, 1.02 * srf]).z_in()
     assert abs(z[1]) > 10 * abs(z[0]) and abs(z[1]) > 10 * abs(z[2])
     # Medhurst (empirical, includes former/fixtures) lands within ~30 %
-    assert srf == pytest.approx(cc.srf_lumped(a), rel=0.3)
+    assert srf == pytest.approx(cc.srf_lumped(a), rel=0.3, abs=0)
 
 
 def test_coupling_split_magnetic_plus_electric():
