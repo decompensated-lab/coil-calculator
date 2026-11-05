@@ -1,5 +1,7 @@
 """coilcal: quasi-static modelling of single-layer cylindrical coils (SI units)."""
 
+from .capacitance import capacitance_matrix, isolated_capacitance
+from .circuit import CoilNetwork, NetworkResult
 from .field import B_axis_rings, B_axis_sheet, field_B, to_magpylib
 from .geometry import SolenoidCoil
 from .inductance import (
@@ -24,15 +26,19 @@ from .srf import QuasiStaticReport, check_quasistatic, self_capacitance_medhurst
 __all__ = [
     "B_axis_rings",
     "B_axis_sheet",
+    "CoilNetwork",
+    "NetworkResult",
     "QuasiStaticReport",
     "SolenoidCoil",
     "ac_resistance",
+    "capacitance_matrix",
     "check_quasistatic",
     "coupling_coefficient",
     "field_B",
     "flux_linkage",
     "induced_emf",
     "induced_voltage_loaded",
+    "isolated_capacitance",
     "loop_self_inductance",
     "mutual_coaxial",
     "mutual_inductance",

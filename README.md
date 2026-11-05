@@ -14,16 +14,22 @@ import coilcal as cc
 from scipy.spatial.transform import Rotation as R
 
 a = cc.SolenoidCoil(wire_d=1.0e-3, pitch=2.0e-3, former_d=0.150, n_turns=10)
-b = cc.SolenoidCoil(1.0e-3, 2.0e-3, 0.150, 5, position=[0.02, 0, 0.08],
-                    orientation=R.from_euler("x", 15, degrees=True))
+b = cc.SolenoidCoil(
+    1.0e-3,
+    2.0e-3,
+    0.150,
+    5,
+    position=[0.02, 0, 0.08],
+    orientation=R.from_euler("x", 15, degrees=True),
+)
 
-cc.self_inductance(a, freq=5e6)          # H
-cc.mutual_inductance(a, b)               # H (arbitrary pose)
+cc.self_inductance(a, freq=5e6)  # H
+cc.mutual_inductance(a, b)  # H (arbitrary pose)
 cc.coupling_coefficient(a, b)
-cc.induced_emf(a, b, current_a=1.0, freq=5e6)        # complex V, open circuit
-cc.induced_voltage_loaded(a, b, 1.0, 5e6, z_load=50) # complex V across a 50 Ω load
+cc.induced_emf(a, b, current_a=1.0, freq=5e6)  # complex V, open circuit
+cc.induced_voltage_loaded(a, b, 1.0, 5e6, z_load=50)  # complex V across a 50 Ω load
 cc.field_B(a, points, current=1.0, model="rings" | "helix")  # T, via magpylib
-print(cc.check_quasistatic(a, f_max=5e6))            # SRF / electrical-length report
+print(cc.check_quasistatic(a, f_max=5e6))  # SRF / electrical-length report
 ```
 
 ## Models
