@@ -1,2 +1,50 @@
-def hello() -> str:
-    return "Hello from coilcal!"
+"""coilcal: quasi-static modelling of single-layer cylindrical coils (SI units)."""
+
+from .field import B_axis_rings, B_axis_sheet, field_B, to_magpylib
+from .geometry import SolenoidCoil
+from .inductance import (
+    ac_resistance,
+    nagaoka,
+    rosa_inductance,
+    self_inductance,
+    sheet_inductance,
+    wheeler_inductance,
+)
+from .loops import loop_self_inductance, mutual_coaxial, mutual_rings, skin_depth
+from .mutual import (
+    coupling_coefficient,
+    flux_linkage,
+    induced_emf,
+    induced_voltage_loaded,
+    mutual_inductance,
+    mutual_matrix,
+)
+from .srf import QuasiStaticReport, check_quasistatic, self_capacitance_medhurst, srf_lumped
+
+__all__ = [
+    "B_axis_rings",
+    "B_axis_sheet",
+    "QuasiStaticReport",
+    "SolenoidCoil",
+    "ac_resistance",
+    "check_quasistatic",
+    "coupling_coefficient",
+    "field_B",
+    "flux_linkage",
+    "induced_emf",
+    "induced_voltage_loaded",
+    "loop_self_inductance",
+    "mutual_coaxial",
+    "mutual_inductance",
+    "mutual_matrix",
+    "mutual_rings",
+    "nagaoka",
+    "rosa_inductance",
+    "self_capacitance_medhurst",
+    "self_inductance",
+    "sheet_inductance",
+    "skin_depth",
+    "srf_lumped",
+    "to_magpylib",
+    "wheeler_inductance",
+]
