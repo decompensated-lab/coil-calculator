@@ -112,6 +112,10 @@ PMMA former:
 
 Close-wound coils with many turns are slow: about 30 s for 100 turns.
 
+The GUI has per-coil inputs for the insulated wire Ø, the insulation and former materials
+(presets or custom εr/tanδ), the former wall and its overhang. Its defaults are enamelled wire
+on a 3 mm PMMA tube. The summary shows each coil's SRF with and without the dielectrics.
+
 Not modelled: proximity effect (approximate it with `r_factor`), radiation, ground
 planes/fixtures, and other coils' formers when coils are not coaxial. Each turn is assumed much shorter than
 a wavelength (true here: 0.47 m against 60 m).

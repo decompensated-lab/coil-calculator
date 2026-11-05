@@ -7,7 +7,7 @@ from matplotlib.axes import Axes
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.figure import Figure
-from matplotlib.patches import Circle
+from matplotlib.patches import Circle, Rectangle
 
 from ..types import ComplexArray, FloatArray
 from .model import Fill, Results, SetupKind
@@ -15,6 +15,7 @@ from .model import Fill, Results, SetupKind
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 INK, MUTED, GRID = "#1f1f1e", "#6b6a64", "#e4e3de"
 COIL_COLORS = (BLUE, ORANGE)
+INSULATION, FORMER = "#e9c98f", "#d9d6cc"  # dielectric fills (amber enamel, grey former)
 
 
 def _style(ax: Axes, grid: bool = True) -> None:
@@ -75,7 +76,17 @@ def draw_cross_section(fig: Figure, r: Results, fill: Fill | str = Fill.CURRENT)
     for k, (ax, c) in enumerate(zip(axes, coils, strict=True)):
         z = (c.turn_z() + c.position[2]) * 1e3
         rr, rw = c.mean_radius * 1e3, c.wire_radius * 1e3
+        ro = c.outer_radius * 1e3
         name = _coil_name(r, k)
+        if ro > rw:  # insulation sleeves
+            ax.add_collection(
+                PatchCollection(
+                    [Circle((zi, rr), ro) for zi in z],
+                    facecolor=INSULATION,
+                    edgecolor="none",
+                    zorder=1,
+                )
+            )
         pc = PatchCollection(
             [Circle((zi, rr), rw) for zi in z], edgecolor=COIL_COLORS["AB".index(name)], lw=1.2
         )
@@ -87,10 +98,25 @@ def draw_cross_section(fig: Figure, r: Results, fill: Fill | str = Fill.CURRENT)
         else:
             pc.set_facecolor("white")
         ax.add_collection(pc)
+        pc.set_zorder(2)
         rf = c.former_d / 2 * 1e3
-        ax.axhspan(rf - 4 * rw, rf, color=GRID, zorder=0)
-        ax.axhline(rf, color=MUTED, lw=0.8)
         pad = 1.5 * c.pitch * 1e3
+        if c.former is not None:
+            half = (c.length / 2 + c.former.overhang) * 1e3
+            zc = c.position[2] * 1e3
+            ax.add_patch(
+                Rectangle(
+                    (zc - half, rf - c.former.wall * 1e3),
+                    2 * half,
+                    c.former.wall * 1e3,
+                    facecolor=FORMER,
+                    edgecolor=MUTED,
+                    lw=0.8,
+                    zorder=0,
+                )
+            )
+        else:
+            ax.axhline(rf, color=MUTED, lw=0.8, ls=":")
         ax.set_xlim(z.min() - pad, z.max() + pad)
         ax.set_ylim(rf - 3 * rw, rr + 3 * rw)
         ax.set_aspect("equal", adjustable="box")
@@ -101,8 +127,8 @@ def draw_cross_section(fig: Figure, r: Results, fill: Fill | str = Fill.CURRENT)
         if name == "B" and r.vna_kind is SetupKind.PAIR and r.params.offset_mm:
             extra = f" — lateral offset {r.params.offset_mm:g} mm (projected on A's axis)"
         ax.set_title(
-            f"coil {name}: {c.n_turns} turns, wire Ø{c.wire_d * 1e3:g} mm, pitch "
-            f"{c.pitch * 1e3:g} mm, former Ø{c.former_d * 1e3:g} mm{extra}",
+            f"coil {name}: {c.n_turns} turns, wire Ø{c.wire_d * 1e3:g}/{c.outer_wire_d * 1e3:g} mm, "
+            f"pitch {c.pitch * 1e3:g} mm, former Ø{c.former_d * 1e3:g} mm{extra}",
             loc="left",
             color=INK,
             fontsize=9,
@@ -150,7 +176,22 @@ def draw_side_view(fig: Figure, r: Results) -> None:
             )
             rf = c.former_d / 2 * 1e3
             xf = side * rf + c.position[0] * 1e3  # former surface
-            ax.plot([xf, xf], [zt.min() - 3, zt.max() + 3], color=color, lw=0.8, alpha=0.6)
+            if c.former is not None:
+                half = (c.length / 2 + c.former.overhang) * 1e3
+                wall = c.former.wall * 1e3
+                ax.add_patch(
+                    Rectangle(
+                        (xf - wall if side > 0 else xf, c.position[2] * 1e3 - half),
+                        wall,
+                        2 * half,
+                        facecolor=FORMER,
+                        edgecolor=color,
+                        lw=0.6,
+                        alpha=0.8,
+                    )
+                )
+            else:
+                ax.plot([xf, xf], [zt.min() - 3, zt.max() + 3], color=color, lw=0.8, alpha=0.6)
     fig.colorbar(im, ax=ax, label="|B| [µT peak]")
     ax.set_aspect("equal")
     ax.set_xlim(x[0], x[-1])

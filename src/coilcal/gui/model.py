@@ -9,8 +9,9 @@ from typing import Any
 import numpy as np
 
 from ..circuit import CoilNetwork, NetworkResult
-from ..geometry import SolenoidCoil
+from ..geometry import Former, SolenoidCoil
 from ..inductance import ac_resistance, self_inductance
+from ..materials import Dielectric, Material
 from ..mutual import mutual_inductance
 from ..srf import self_capacitance_medhurst, srf_lumped
 from ..types import ComplexArray, Coupling, FloatArray, Grounding, TerminalEnd, ThruMode
@@ -64,6 +65,12 @@ class Fill(StrEnum):
     NONE = "none"
 
 
+def _preset(m: Material) -> Dielectric:
+    d = m.dielectric
+    assert d is not None
+    return d
+
+
 @dataclass
 class CoilParams:
     wire_d_mm: float = 1.0
@@ -71,18 +78,50 @@ class CoilParams:
     former_d_mm: float = 150.0
     turns: int = 10
     ground: Grounding = Grounding.END
+    # insulation: outer Ø over the insulation (= wire Ø for bare wire) and its dielectric
+    insulation_d_mm: float = 1.06
+    insulation_material: Material = Material.ENAMEL
+    insulation: Dielectric = field(default_factory=lambda: _preset(Material.ENAMEL))
+    # former: dielectric tube under the winding (material AIR = no former)
+    former_wall_mm: float = 3.0
+    former_overhang_mm: float = 10.0
+    former_material: Material = Material.PMMA
+    former: Dielectric = field(default_factory=lambda: _preset(Material.PMMA))
 
     def __post_init__(self) -> None:
         self.ground = Grounding.parse(self.ground)
+        self.insulation_material = Material(self.insulation_material)
+        self.former_material = Material(self.former_material)
 
     def build(self, **pose: Any) -> SolenoidCoil:
+        mm = 1e-3
+        former = None
+        if self.former.eps_complex != 1:
+            former = Former(self.former_wall_mm * mm, self.former, self.former_overhang_mm * mm)
         return SolenoidCoil(
-            wire_d=self.wire_d_mm * 1e-3,
-            pitch=self.pitch_mm * 1e-3,
-            former_d=self.former_d_mm * 1e-3,
+            wire_d=self.wire_d_mm * mm,
+            pitch=self.pitch_mm * mm,
+            former_d=self.former_d_mm * mm,
             n_turns=self.turns,
+            insulation_d=max(self.insulation_d_mm, self.wire_d_mm) * mm,
+            insulation=self.insulation,
+            former=former,
             **pose,
         )
+
+    def dielectric_label(self) -> str:
+        """Short description, e.g. 'enamel εr 3.6 · PMMA former εr 2.6, 3 mm'."""
+        parts = []
+        t = (self.insulation_d_mm - self.wire_d_mm) / 2
+        if t > 0 and self.insulation.eps_r != 1:
+            parts.append(f"insulation εr {self.insulation.eps_r:g} ({t * 1e3:.0f} µm)")
+        else:
+            parts.append("bare wire" if t <= 0 else "insulation εr 1")
+        if self.former.eps_r != 1:
+            parts.append(f"former εr {self.former.eps_r:g}, {self.former_wall_mm:g} mm wall")
+        else:
+            parts.append("no former dielectric")
+        return " · ".join(parts)
 
 
 @dataclass
@@ -127,18 +166,37 @@ class Params:
         return [a, b]
 
     @property
+    def ab(self) -> list[CoilParams]:
+        return [self.a, self.b]
+
+    @property
     def grounds(self) -> list[Grounding]:
         return [self.a.ground, self.b.ground]
 
 
 def check_overlap(a: SolenoidCoil, b: SolenoidCoil) -> None:
-    """Raise ValueError if the windings of two parallel-axis coils intersect."""
+    """Raise ValueError if the windings or formers of two parallel-axis coils intersect."""
+    off = float(np.hypot(*(b.position[:2] - a.position[:2])))
+    for c, d, names in ((a, b, "AB"), (b, a, "BA")):
+        # winding of d vs former wall of c (radii measured from c's axis)
+        if c.former is None:
+            continue
+        half = c.length / 2 + c.former.overhang
+        if abs(d.position[2] - c.position[2]) >= half + d.length / 2 + d.outer_radius:
+            continue
+        r_out = c.former_d / 2
+        r_in = r_out - c.former.wall
+        lo, hi = d.mean_radius - off - d.outer_radius, d.mean_radius + off + d.outer_radius
+        if lo < r_out - 1e-12 and hi > r_in + 1e-12 and not (c is d):
+            raise ValueError(
+                f"the winding of {names[1]} intersects the former wall of {names[0]}: change the "
+                "gap or the former diameter / wall"
+            )
     za = (a.position[2] - a.length / 2, a.position[2] + a.length / 2)
     zb = (b.position[2] - b.length / 2, b.position[2] + b.length / 2)
     clearance = (a.outer_wire_d + b.outer_wire_d) / 2
     if za[1] + clearance / 2 <= zb[0] or zb[1] + clearance / 2 <= za[0]:
         return
-    off = float(np.hypot(*(b.position[:2] - a.position[:2])))
     # B's winding spans radii [Rb - off, Rb + off] measured from A's axis
     lo, hi = b.mean_radius - off - clearance, b.mean_radius + off + clearance
     if lo < a.mean_radius < hi:
@@ -161,6 +219,7 @@ class Results:
     srf_net: list[float]
     srf_medhurst: list[float]
     c_medhurst: list[float]
+    srf_vacuum: list[float]  # same coil without insulation/former dielectrics (nan if none)
     # VNA view
     vna_kind: SetupKind
     vna_coils: list[SolenoidCoil]
@@ -289,6 +348,14 @@ def compute(p: Params) -> Results:
             for c, g in zip(coils, grounds, strict=True)
         ],
         srf_medhurst=[srf_lumped(c) for c in coils],
+        srf_vacuum=[
+            CoilNetwork([c.without_dielectrics()], ground=g, r_factor=p.r_factor).srf(
+                f_lo=1e4, f_hi=hi
+            )
+            if c.has_dielectrics
+            else float("nan")
+            for c, g in zip(coils, grounds, strict=True)
+        ],
         c_medhurst=[self_capacitance_medhurst(c) for c in coils],
         vna_kind=setup.kind,
         vna_coils=vna_coils,

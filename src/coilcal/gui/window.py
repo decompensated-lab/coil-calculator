@@ -14,7 +14,17 @@ from .help import GUIDE_HTML, TAB_TIPS
 from .model import CoilParams, Fill, GapRef, Params, Results, VnaSetup, compute
 from .pairtab import WirePairTab
 from .richtext import summary_html
-from .widgets import EnumCombo, Field, PlotTab, _add_rows, _changed_signal, _dspin, _ispin
+from .widgets import (
+    DielectricEdit,
+    EnumCombo,
+    Field,
+    PlotTab,
+    _add_rows,
+    _changed_signal,
+    _dspin,
+    _ispin,
+    _label,
+)
 
 DrawFn = Callable[[Figure, Results], None]
 PAIR_TAB = "Wire pair C"
@@ -33,16 +43,51 @@ class CoilBox(QtWidgets.QGroupBox):
         self.ground: EnumCombo[Grounding] = EnumCombo(
             [Grounding.END, Grounding.START, Grounding.FLOATING], p.ground, lambda g: g.label
         )
+        self.ins_d = _dspin(p.insulation_d_mm, 0.01, 30, 0.01, decimals=3, suffix=" mm")
+        self.ins = DielectricEdit(
+            p.insulation_material, p.insulation, ("ins_mat", "ins_eps", "ins_tand")
+        )
+        self.wall = _dspin(p.former_wall_mm, 0.01, 1000, 0.5, decimals=2, suffix=" mm")
+        self.overhang = _dspin(p.former_overhang_mm, 0, 2000, 1, decimals=1, suffix=" mm")
+        self.fmr = DielectricEdit(
+            p.former_material, p.former, ("former_mat", "former_eps", "former_tand")
+        )
         rows: list[tuple[str, str, Field]] = [
             ("wire Ø", "wire", self.wire),
+            ("insulated Ø", "ins_d", self.ins_d),
             ("pitch", "pitch", self.pitch),
             ("former Ø", "former", self.former),
             ("turns", "turns", self.turns),
             ("terminals", "ground", self.ground),
         ]
         _add_rows(self.form, rows)
+        self.form.addRow(_label("insulation", "ins_mat"), self.ins)
+        _add_rows(
+            self.form,
+            [
+                ("former wall", "former_wall", self.wall),
+                ("overhang", "former_overhang", self.overhang),
+            ],
+        )
+        self.form.addRow(_label("former", "former_mat"), self.fmr)
+        self._wire_prev = p.wire_d_mm
+        self.wire.valueChanged.connect(self._keep_insulation)
         for _, _, w in rows:
             _changed_signal(w).connect(self.changed)
+        for w2 in (self.wall, self.overhang):
+            w2.valueChanged.connect(self.changed)
+        self.ins.changed.connect(self.changed)
+        self.fmr.changed.connect(self.changed)
+        self.ins_d.setMinimum(p.wire_d_mm)
+
+    def _keep_insulation(self, value: float) -> None:
+        """Changing the wire Ø keeps the insulation thickness."""
+        thickness = max(self.ins_d.value() - self._wire_prev, 0.0)
+        self._wire_prev = value
+        self.ins_d.blockSignals(True)
+        self.ins_d.setMinimum(value)
+        self.ins_d.setValue(value + thickness)
+        self.ins_d.blockSignals(False)
 
     def params(self) -> CoilParams:
         return CoilParams(
@@ -51,6 +96,13 @@ class CoilBox(QtWidgets.QGroupBox):
             former_d_mm=self.former.value(),
             turns=self.turns.value(),
             ground=self.ground.value(),
+            insulation_d_mm=self.ins_d.value(),
+            insulation_material=self.ins.material.value(),
+            insulation=self.ins.value(),
+            former_wall_mm=self.wall.value(),
+            former_overhang_mm=self.overhang.value(),
+            former_material=self.fmr.material.value(),
+            former=self.fmr.value(),
         )
 
 
@@ -66,9 +118,17 @@ class _Job(QtCore.QRunnable):
 
     def run(self) -> None:
         try:
-            self.signals.done.emit(self.gen, compute(self.params))
+            result = compute(self.params)
         except Exception as e:  # noqa: BLE001 - surface any model error in the UI
-            self.signals.failed.emit(self.gen, f"{type(e).__name__}: {e}")
+            self._emit(self.signals.failed, f"{type(e).__name__}: {e}")
+        else:
+            self._emit(self.signals.done, result)
+
+    def _emit(self, signal: QtCore.SignalInstance, payload: object) -> None:
+        try:
+            signal.emit(self.gen, payload)
+        except RuntimeError:  # window closed while computing
+            pass
 
 
 class MainWindow(QtWidgets.QMainWindow):

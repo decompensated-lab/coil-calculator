@@ -8,6 +8,7 @@ QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
 from coilcal.gui import CoilParams, MainWindow, Params, compute, summary_html
 from coilcal.gui.model import Fill, GapRef, VnaSetup, check_overlap
+from coilcal.materials import Material
 
 
 @pytest.mark.parametrize("setup", list(VnaSetup))
@@ -89,7 +90,6 @@ def test_bz_profiles_match_static_at_low_frequency():
 
 def test_wire_pair_tab():
     from coilcal.gui.pair import PairParams, SpacingRef, WireParams, compute_pair, pair_summary_html
-    from coilcal.materials import Material
 
     r = compute_pair(PairParams(spacing_ref=SpacingRef.CENTRE, spacing_mm=2.0))
     assert r.res.spacing == pytest.approx(2e-3)
@@ -121,5 +121,36 @@ def test_wire_pair_tab():
     tab.recompute()
     assert "overlap" in tab.status.text()
     w.tabs.setCurrentWidget(tab)
+    app.processEvents()
+    w.close()
+
+
+def test_coil_dielectrics_in_gui_model():
+    from coilcal.materials import Dielectric
+
+    bare = CoilParams(
+        turns=6, insulation_d_mm=1.0, former_material=Material.AIR, former=Dielectric(1.0)
+    )
+    c = bare.build()
+    assert c.former is None and not c.has_dielectrics
+    r = compute(Params(a=CoilParams(turns=6), b=CoilParams(turns=3)))
+    assert r.coils[0].former is not None and r.coils[0].has_dielectrics
+    assert r.srf_net[0] < r.srf_vacuum[0]  # dielectrics lower the SRF
+    assert "former εr 2.6" in summary_html(r)
+    # B wound inside A's former wall is rejected
+    nested = Params(b=CoilParams(turns=3, former_d_mm=144.0), gap_ref="centre-to-centre", gap_mm=0)
+    with pytest.raises(ValueError, match="former wall of A"):
+        nested.coils()
+
+
+def test_coil_box_keeps_insulation_thickness():
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    w = MainWindow(Params(a=CoilParams(turns=4), b_enabled=False))
+    box = w.box_a
+    box.wire.setValue(0.5)
+    assert box.ins_d.value() == pytest.approx(0.56)
+    box.ins.material.set_value(Material.PTFE)
+    assert box.params().insulation.eps_r == pytest.approx(2.1)
+    assert box.params().insulation_material is Material.PTFE
     app.processEvents()
     w.close()

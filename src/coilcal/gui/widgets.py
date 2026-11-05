@@ -9,6 +9,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolb
 from matplotlib.figure import Figure
 from PySide6 import QtCore, QtWidgets
 
+from ..materials import Dielectric, Material
 from .help import TIPS
 
 
@@ -97,3 +98,49 @@ def _changed_signal(w: Field) -> QtCore.SignalInstance:
 def _add_rows(form: QtWidgets.QFormLayout, rows: Iterable[tuple[str, str, Field]]) -> None:
     for text, key, w in rows:
         form.addRow(_label(text, key), _tip(w, key))
+
+
+class DielectricEdit(QtWidgets.QWidget):
+    """Material preset combo plus editable εr and tan δ (editing them switches to 'custom')."""
+
+    changed = QtCore.Signal()
+
+    def __init__(self, material: Material, value: Dielectric, tips: tuple[str, str, str]) -> None:
+        super().__init__()
+        self.material: EnumCombo[Material] = EnumCombo(Material, material)
+        self.eps = _dspin(value.eps_r, 1.0, 1000, 0.1, decimals=3)
+        self.eps.setPrefix("εr ")
+        self.tand = _dspin(value.tan_delta, 0.0, 1.0, 0.001, decimals=5)
+        self.tand.setPrefix("tanδ ")
+        for w, key in zip((self.material, self.eps, self.tand), tips, strict=True):
+            _tip(w, key)
+        lay = QtWidgets.QGridLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.material, 0, 0, 1, 2)
+        lay.addWidget(self.eps, 1, 0)
+        lay.addWidget(self.tand, 1, 1)
+        self.material.currentIndexChanged.connect(self._preset)
+        self.eps.valueChanged.connect(self._manual)
+        self.tand.valueChanged.connect(self._manual)
+        self.material.currentIndexChanged.connect(self.changed)
+        self.eps.valueChanged.connect(self.changed)
+        self.tand.valueChanged.connect(self.changed)
+
+    def _preset(self) -> None:
+        d = self.material.value().dielectric
+        if d is None:
+            return
+        for w, v in ((self.eps, d.eps_r), (self.tand, d.tan_delta)):
+            w.blockSignals(True)
+            w.setValue(v)
+            w.blockSignals(False)
+
+    def _manual(self) -> None:
+        d = self.material.value().dielectric
+        if d is not None and (d.eps_r, d.tan_delta) != (self.eps.value(), self.tand.value()):
+            self.material.blockSignals(True)
+            self.material.set_value(Material.CUSTOM)
+            self.material.blockSignals(False)
+
+    def value(self) -> Dielectric:
+        return Dielectric(self.eps.value(), self.tand.value())

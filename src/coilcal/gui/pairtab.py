@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..materials import Material
+from ..materials import Dielectric, Material
 from .model import CoilParams
 from .pair import (
     PairParams,
@@ -17,7 +17,7 @@ from .pair import (
     draw_pair,
     pair_summary_html,
 )
-from .widgets import EnumCombo, PlotTab, _add_rows, _dspin, _tip
+from .widgets import DielectricEdit, EnumCombo, PlotTab, _add_rows, _dspin, _label, _tip
 
 
 class WireBox(QtWidgets.QGroupBox):
@@ -30,45 +30,28 @@ class WireBox(QtWidgets.QGroupBox):
         self.form = QtWidgets.QFormLayout(self)
         self.cond = _dspin(p.conductor_d_mm, 0.001, 100, 0.05, decimals=4, suffix=" mm")
         self.ins = _dspin(p.insulation_d_mm, 0.001, 200, 0.05, decimals=4, suffix=" mm")
-        self.material: EnumCombo[Material] = EnumCombo(Material, p.material)
-        self.eps = _dspin(p.eps_r, 1.0, 1000, 0.1, decimals=3)
-        self.tand = _dspin(p.tan_delta, 0.0, 1.0, 0.001, decimals=5)
+        self.diel = DielectricEdit(
+            p.material, Dielectric(p.eps_r, p.tan_delta), ("pair_material", "pair_eps", "pair_tand")
+        )
+        self.material, self.eps, self.tand = self.diel.material, self.diel.eps, self.diel.tand
         _add_rows(
             self.form,
             [
                 ("conductor Ø", "pair_cond", self.cond),
                 ("insulation outer Ø", "pair_ins", self.ins),
-                ("material", "pair_material", self.material),
-                ("εr", "pair_eps", self.eps),
-                ("tan δ", "pair_tand", self.tand),
             ],
         )
-        self.material.currentIndexChanged.connect(self._preset)
-        self.eps.valueChanged.connect(self._manual)
-        self.tand.valueChanged.connect(self._manual)
+        self.form.addRow(_label("insulation", "pair_material"), self.diel)
+        self.material.currentIndexChanged.connect(self._air)
         self.cond.valueChanged.connect(self._clamp)
-        for w in (self.cond, self.ins, self.eps, self.tand):
+        for w in (self.cond, self.ins):
             w.valueChanged.connect(self.changed)
-        self.material.currentIndexChanged.connect(self.changed)
+        self.diel.changed.connect(self.changed)
         self._clamp()
 
-    def _preset(self) -> None:
-        d = self.material.value().dielectric
-        if d is None:
-            return
-        for w, v in ((self.eps, d.eps_r), (self.tand, d.tan_delta)):
-            w.blockSignals(True)
-            w.setValue(v)
-            w.blockSignals(False)
+    def _air(self) -> None:
         if self.material.value() is Material.AIR:
             self.ins.setValue(self.cond.value())
-
-    def _manual(self) -> None:
-        d = self.material.value().dielectric
-        if d is not None and (d.eps_r, d.tan_delta) != (self.eps.value(), self.tand.value()):
-            self.material.blockSignals(True)
-            self.material.set_value(Material.CUSTOM)
-            self.material.blockSignals(False)
 
     def _clamp(self) -> None:
         """Insulation outer Ø can't be below the conductor Ø."""

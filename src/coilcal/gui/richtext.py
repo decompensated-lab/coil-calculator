@@ -92,9 +92,16 @@ def summary_html(r: Results, dark: bool = False) -> str:
                 f"network, {r.params.grounds[k].label}",
             ),
             row(
+                r"f_\mathrm{SRF}^\mathrm{no\ dielectric}",
+                si(r.srf_vacuum[k], "Hz"),
+                f"{r.srf_net[k] / r.srf_vacuum[k] - 1:+.1%} from insulation + former"
+                if np.isfinite(r.srf_vacuum[k])
+                else "no dielectrics set",
+            ),
+            row(
                 r"f_\mathrm{SRF}^\mathrm{Medhurst}",
                 si(r.srf_medhurst[k], "Hz"),
-                f"C = {si(r.c_medhurst[k], 'F', 3)}",
+                f"C = {si(r.c_medhurst[k], 'F', 3)}, bare wire in air",
             ),
             row(
                 r"\ell_\mathrm{wire}/\lambda", f"{c.wire_length / lam:.3f}", si(c.wire_length, "m")
@@ -103,7 +110,8 @@ def summary_html(r: Results, dark: bool = False) -> str:
         cols.append(
             f"<h3 style='margin:0'>Coil {'AB'[k]}</h3>"
             f"<p style='color:{muted}; margin:0'>{c.n_turns} turns · ℓ = {c.length * 1e3:.1f} mm · "
-            f"r = {c.mean_radius * 1e3:.2f} mm</p><table>{''.join(rows)}</table>"
+            f"r = {c.mean_radius * 1e3:.2f} mm<br>{r.params.ab[k].dielectric_label()}</p>"
+            f"<table>{''.join(rows)}</table>"
         )
 
     if len(r.coils) == 2:

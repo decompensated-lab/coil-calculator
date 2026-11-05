@@ -5,7 +5,24 @@ TIPS = {
     "wire": "Bare conductor diameter. The skin-effect resistance and internal inductance use it.",
     "pitch": "Axial distance between the centres of adjacent turns (Coil64 'p'). "
     "Must be ≥ the wire diameter.",
-    "former": "Outer diameter of the coil form. Wire centres sit at former/2 + wire/2.",
+    "former": "Outer diameter of the coil form. Wire centres sit at former/2 + insulated Ø/2.",
+    "ins_d": "Outer diameter over the insulation (Coil64's 'wire diameter with insulation'). "
+    "Equal to the wire Ø means bare wire. Changing the wire Ø keeps the insulation thickness. "
+    "Typical enamel on 1 mm wire: 1.04–1.09 mm.",
+    "ins_mat": "Insulation material: fills εr and tan δ with typical values around 1 MHz "
+    "(edit them for datasheet values; the preset then shows 'custom'). The insulation is a "
+    "dielectric sleeve that raises the turn-to-turn capacitance.",
+    "ins_eps": "Relative permittivity of the wire insulation.",
+    "ins_tand": "Loss tangent of the insulation. It makes the capacitance lossy, which lowers "
+    "Q near self-resonance.",
+    "former_wall": "Radial wall thickness of the former tube (inward from the former Ø).",
+    "former_overhang": "How far the former tube extends beyond the winding at each end. Coils "
+    "with the same former settings whose tubes meet are treated as one shared tube.",
+    "former_mat": "Former material. 'air / none' removes the former from the electrostatics "
+    "(the former Ø still sets the winding radius). The former's dielectric raises the coil's "
+    "self-capacitance and lowers its SRF.",
+    "former_eps": "Relative permittivity of the former.",
+    "former_tand": "Loss tangent of the former material.",
     "turns": "Number of turns. The model has one lumped branch per turn.",
     "ground": "How this coil's terminals relate to the reference (the coax shield / VNA ground)."
     "\n• end/start grounded: that terminal is on the shield (single-ended).\n• floating: "
@@ -98,10 +115,13 @@ plus skin-effect resistance and internal inductance per turn;</li>
 <li>the <b>turn-to-turn capacitance matrix</b> from an electrostatic charge-simulation solver
 (it resolves charge crowding between neighbouring wires).</li>
 </ul>
+<p>The capacitance includes the wire insulation (a dielectric sleeve around each turn) and
+the former (a dielectric tube under the winding), both with dielectric loss (tan δ).</p>
 <p>Solving this network over frequency gives self-resonance, non-uniform current along the
 winding, and both inductive and capacitive coupling between coils. Each turn is assumed much
-shorter than a wavelength (fine to ~100 MHz for a 150 mm coil). Radiation, the former's
-dielectric, the proximity effect (use <i>R factor</i>) and nearby metal are not modelled.</p>
+shorter than a wavelength (fine to ~100 MHz for a 150 mm coil). Radiation, the proximity
+effect (use <i>R factor</i>) and nearby metal are not modelled. When the coils are not
+coaxial, each coil's former only acts on its own winding.</p>
 <h3>Tabs</h3>
 <ul>
 <li><b>Impedance / Transfer</b>: open-circuit Z-parameters of the A/B pair. They don't depend
