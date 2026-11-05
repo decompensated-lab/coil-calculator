@@ -258,7 +258,11 @@ def pair_summary_html(r: PairResults, dark: bool = False) -> str:
     ]
     line = [
         row(r"\varepsilon_\mathrm{eff}=C'/C'_\mathrm{air}", f"{r.eps_eff:.4f}"),
-        row(r"Z_0=1/(c_0\sqrt{C' C'_\mathrm{air}})", f"{r.z0_line:.4g} Ω", "balanced, quasi-TEM"),
+        row(
+            r"Z_0=1/(c_0\sqrt{C' C'_\mathrm{air}})",
+            f"{r.z0_line:.4g} Ω",
+            "differential (forward/return), quasi-TEM",
+        ),
         row(r"v/c_0=1/\sqrt{\varepsilon_\mathrm{eff}}", f"{1 / np.sqrt(r.eps_eff):.4f}"),
         row(r"L'_\mathrm{ext}", si(1 / (C0**2 * r.c_bare), "H/m"), "external (HF)"),
     ]

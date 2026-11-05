@@ -39,11 +39,13 @@ TIPS = {
     "f_min": "Lowest frequency of the sweep (logarithmic spacing).",
     "f_max": "Highest frequency of the sweep.",
     "n_freq": "Number of sweep points. The view frequency is always included exactly.",
-    "f_view": "Frequency used by the summary, the cross-section fill, the turn-current plot and "
-    "the side-view field. It is marked by a grey line in the sweep plots.",
+    "f_view": "Frequency used by the summary, the cross-section fill, the turn-current plot, "
+    "the side view and the Bz profiles. It is marked by a grey line in the sweep plots. Keep "
+    "it well below the first resonance to read L_eff and X/R.",
     "z_load": "Load on coil B for the 'into load' transfer curve (Transfer tab).",
     "r_factor": "Multiplier on the isolated-wire skin-effect resistance, to account for "
-    "the proximity effect between turns (not computed). Typical: 1.2–2 for pitch ≈ 2·d.",
+    "the proximity effect between turns (not computed). Rough guide: ~1.2–1.5 for pitch ≈ 2·d, "
+    "up to 2–3 for touching turns.",
     "coupling": "Diagnostic: keep both inter-coil coupling paths (full), only the magnetic one "
     "(mutual inductance), or only the electric one (inter-coil capacitance).",
     "fill": "What colours the wire circles in the cross-section: turn current magnitude, turn "
@@ -126,9 +128,9 @@ coaxial, each coil's former only acts on its own winding.</p>
 <ul>
 <li><b>Impedance / Transfer</b>: open-circuit Z-parameters of the A/B pair. They don't depend
 on the VNA fixture. Dotted lines are the quasi-DC model.</li>
-<li><b>VNA</b>, <b>Side view</b>, <b>Cross-section</b> fill and <b>Turn currents</b> follow the
-selected <i>VNA setup</i>. Port 1 is driven with the chosen power; all ports are terminated in
-Z0.</li>
+<li><b>VNA</b>, <b>Side view</b>, <b>Bz profiles</b>, <b>Cross-section</b> fill and <b>Turn
+currents</b> follow the selected <i>VNA setup</i>. Port 1 is driven with the chosen power; all
+ports are terminated in Z0.</li>
 </ul>
 <h3>Wire pair C</h3>
 <p>A separate calculator for two long, parallel, insulated wires in air: the capacitance per
@@ -136,6 +138,22 @@ unit length, effective loss tangent, and the pair's impedance and velocity facto
 The dielectric sleeve and the surrounding air are both modelled (multipole expansion, exact up to
 series truncation), so the result lies between the bare-wire value and εr times it. It does not
 change the coil model above.</p>
+<h3>Summary panel</h3>
+<ul>
+<li><b>L<sub>eff</sub></b> = Im Z<sub>in</sub>/ω and <b>X/R</b> at the view frequency come from
+the network. Near or above a resonance, of this coil or of a coupled one, they no longer mean
+inductance or Q, so they are hidden.</li>
+<li><b>Q<sub>L</sub></b> = ωL<sub>DC</sub>/R<sub>ac</sub>: copper-only Q, valid well below
+resonance.</li>
+<li><b>f<sub>SRF</sub>, Q<sub>SRF</sub></b>: first parallel resonance of the coil alone and its
+resonator Q. That Q includes conductor and dielectric loss; R<sub>p</sub> is |Z| at
+resonance.</li>
+<li><b>f<sub>res</sub></b>: the same resonance with the other coil present (open).</li>
+<li><b>f<sub>SRF</sub> without dielectrics</b>: the same coil with vacuum insulation and no
+former. <b>Medhurst</b>: the empirical estimate, for comparison.</li>
+</ul>
+<p>When measuring with a VNA, calibrate at the coil terminals: about 100 pF/m of
+uncompensated coax adds straight to the coil's capacitance.</p>
 <h3>Conventions</h3>
 <p>Phasors are peak amplitudes. Positive current circulates counter-clockwise about +z
 (right-hand rule: field along +z inside). Z21 is the open-circuit voltage at B per ampere into

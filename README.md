@@ -1,159 +1,234 @@
 # coilcal
 
-Quasi-static modelling of single-layer cylindrical coils, parametrised like Coil64
-(wire Ø, pitch, former Ø, turns). SI units throughout.
+Models of single-layer cylindrical coils, parametrised like Coil64 (wire Ø, insulated Ø,
+pitch, former Ø, turns). It covers the static field, inductance and mutual inductance. It
+also has a turn-level circuit model for frequencies up to and beyond self-resonance. That
+model includes turn-to-turn capacitance with the wire insulation and the former's dielectric,
+VNA S-parameters, and a Qt GUI. SI units throughout. Phasors are peak amplitudes.
 
 ```bash
-uv sync
-uv run pytest -q
+uv sync                      # Python 3.12, deps pinned in uv.lock (7-day cooldown)
+uv run coilcal-gui           # Qt GUI (F1 = guide; hover any control for help)
+uv run pytest -q             # full test suite (~15 s; GUI tests run offscreen)
 uv run python examples/demo.py --turns-a 10 --turns-b 5 --freq 5e6 --gap 0.05
-uv run coilcal-gui        # Qt GUI (F1 = guide; hover any control for help)
-uv run mypy               # static type check (configured in pyproject.toml)
 ```
 
-Mode-like arguments are `StrEnum`s in `coilcal.types` (`Grounding`, `Coupling`, `FieldModel`,
-`MutualMethod`, `ThruMode`, `TerminalEnd`). Plain strings such as `"end"` are still
-accepted but are validated, so a typo raises `ValueError` instead of being silently ignored.
+## Library
+
+### Static (quasi-DC) quantities
 
 ```python
+import numpy as np
 import coilcal as cc
 from scipy.spatial.transform import Rotation as R
 
 a = cc.SolenoidCoil(wire_d=1.0e-3, pitch=2.0e-3, former_d=0.150, n_turns=10)
-b = cc.SolenoidCoil(
-    1.0e-3,
-    2.0e-3,
-    0.150,
-    5,
-    position=[0.02, 0, 0.08],
-    orientation=R.from_euler("x", 15, degrees=True),
-)
+b = cc.SolenoidCoil(1.0e-3, 2.0e-3, 0.150, 5,
+                    position=[0.02, 0, 0.08], orientation=R.from_euler("x", 15, degrees=True))
 
-cc.self_inductance(a, freq=5e6)  # H
-cc.mutual_inductance(a, b)  # H (arbitrary pose)
+cc.self_inductance(a, freq=5e6)                         # H (skin-effect internal L)
+cc.mutual_inductance(a, b)                              # H, any pose
 cc.coupling_coefficient(a, b)
-cc.induced_emf(a, b, current_a=1.0, freq=5e6)  # complex V, open circuit
-cc.induced_voltage_loaded(a, b, 1.0, 5e6, z_load=50)  # complex V across a 50 Ω load
-cc.field_B(a, points, current=1.0, model="rings" | "helix")  # T, via magpylib
-print(cc.check_quasistatic(a, f_max=5e6))  # SRF / electrical-length report
+cc.induced_emf(a, b, current_a=1.0, freq=5e6)           # complex V, B open
+cc.induced_voltage_loaded(a, b, 1.0, 5e6, z_load=50)    # complex V across 50 Ω
+pts = np.array([[0, 0, z] for z in np.linspace(-0.1, 0.1, 5)])
+cc.field_B(a, pts, current=1.0, model="rings")          # T, via magpylib ("helix" too)
+print(cc.check_quasistatic(a, f_max=5e6))               # Medhurst SRF / electrical length
 ```
 
-## Models
-
-| quantity | method | cross-check (tests) |
-|---|---|---|
-| geometry | wire centre at `former_d/2 + wire_d/2` (Coil64), length `N·pitch` | |
-| B-field | magpylib: one `Circle` per turn, or a `Polyline` helix (pitch + axial current) | exact on-axis ring sum; current sheet; dipole far field |
-| L | Σ turn self-inductance (round-wire loop, skin-effect internal inductance from Bessel solution) + Σ Maxwell turn-pair mutuals | Nagaoka + Rosa corrections (agree to ~2e-5); Wheeler |
-| M | turn-pair sum: Maxwell (coaxial) or analytic ring vector potential ∮A·dl with adaptive periodic trapezoid (any pose) | magpylib flux through each turn's disk (agree to ~1e-6); reciprocity |
-| C_self, SRF | Medhurst fit, lumped `1/(2π√(LC))` | estimates only (±10–20 %), flagged outside l/D 0.1–50 |
-| R_ac | isolated-wire skin effect | proximity effect **not** included |
-
-Sign convention: positive current circulates CCW about the coil's local +z axis; M > 0 when
-positive currents give aiding flux. Flipping a coil (180°) flips the sign of M.
-
-## Turn-level network (non-DC effects)
-
-`CoilNetwork([a, b], ground=["end", "end"])` builds a lumped network with one branch per
-turn. Each branch is `R + jωL` and is coupled to every other turn through the inductance
-matrix above. The Maxwell capacitance matrix between turns comes from a charge-simulation
-electrostatic solver (axisymmetric within coaxial coils, thin-wire between other coils) and is
-mapped onto the winding nodes. `solve(freqs)` returns:
-
-* the port Z-matrix: `Z11` (input impedance, `effective_inductance`) and `Z21` (open-circuit
-  V_B per ampere in A, including capacitive feed-through); use `loaded_voltage(z_load)` for a
-  terminated coil B;
-* per-turn currents and node voltages, plus the complex B-field from them (`net.field_B`);
-* `net.srf()`: the first parallel resonance at a port.
-
-`coupling="magnetic"` or `"electric"` keeps only one inter-coil path, to split the two
-contributions. `ports=[Port(...), ...]` defines arbitrary fixtures. `coilcal.vna` adds Z→S
-conversion, series/shunt-thru fixtures and source-power drive.
-
-Checks: the low-frequency limit reproduces the static L, M and R to 1e-6. The capacitance
-solver matches an isolated torus and the two-wire line formula to about 1e-4. The network is
-reciprocal.
-
-### Insulation and former dielectrics
+### Insulation and former
 
 ```python
 from coilcal import Dielectric, Former, Material, SolenoidCoil
 
 coil = SolenoidCoil(
     wire_d=1.0e-3, pitch=2.0e-3, former_d=0.150, n_turns=10,
-    insulation_d=1.06e-3, insulation=Material.ENAMEL.dielectric,      # εr 3.6, tanδ 0.01
+    insulation_d=1.06e-3, insulation=Material.ENAMEL.dielectric,       # εr 3.6, tanδ 0.01
     former=Former(wall=3e-3, dielectric=Material.PMMA.dielectric, overhang=10e-3),
 )
 ```
 
-Both enter the turn-to-turn capacitance matrix; inductance is unaffected.
+* **Placement:** the wire centre sits at `former_d/2 + insulation_d/2`.
+* **What the dielectrics affect:** only the capacitance. Inductance and field are unchanged.
+* **Values:** `Material` presets are typical values around 1 MHz, so prefer datasheet values;
+  use `Dielectric(eps_r, tan_delta)` for custom ones.
+* **Sharing a former:** coaxial coils with the same `Former` settings whose tubes meet share
+  one tube.
 
-* **Insulation:** eliminated exactly. Each wire is locally 2-D, so the sleeve becomes a
-  per-harmonic boundary condition on its outer surface.
-* **Former:** a dielectric tube modelled with boundary elements. Panels on its outer, inner
-  and end faces carry bound charge.
-* **Loss:** a lossy dielectric (`tan_delta > 0`) makes C complex, so the network includes the
-  dielectric loss.
-
-Checks:
-
-* Insulated turns of a very large coil match the exact 2-D insulated pair to 2e-3, including
-  touching turns. The number of charges per turn grows automatically for tight windings.
-* With a former, they match an independent 2-D boundary-element reference to 0.1–0.5%. That
-  includes enamelled wire touching the former.
-
-Typical effect on the self-resonant frequency, for 1 mm enamelled wire on a 150 mm, 3 mm-wall
-PMMA former:
-
-| turns | pitch 2 mm | close-wound |
-|---|---|---|
-| 10 | −10% | −22% |
-| 30 | −5% | −14% |
-
-Close-wound coils with many turns are slow: about 30 s for 100 turns.
-
-The GUI has per-coil inputs for the insulated wire Ø, the insulation and former materials
-(presets or custom εr/tanδ), the former wall and its overhang. Its defaults are enamelled wire
-on a 3 mm PMMA tube. The summary shows each coil's SRF with and without the dielectrics.
-
-Not modelled: proximity effect (approximate it with `r_factor`), radiation, ground
-planes/fixtures, and other coils' formers when coils are not coaxial. Each turn is assumed much shorter than
-a wavelength (true here: 0.47 m against 60 m).
-
-## Insulated wire pair (2-D)
-
-`coilcal.wirepair.pair_capacitance(w1, w2, spacing)` gives the capacitance per unit length
-between two long parallel round conductors, each in a concentric dielectric sleeve, with air
-outside. It uses a multipole expansion with an exact reflection coefficient per harmonic for
-each sleeve, and is exact apart from series truncation. A complex permittivity
-(`Dielectric(eps_r, tan_delta)`, presets in `coilcal.materials.Material`) gives the line's
-effective loss tangent and shunt conductance.
+### Turn-level network, resonance and VNA
 
 ```python
-from coilcal.materials import Dielectric
-from coilcal.wirepair import InsulatedWire, pair_capacitance
+from coilcal import CoilNetwork
 
-w = InsulatedWire(1e-3, 1.5e-3, Dielectric(2.1, 2e-4))  # Ø1 mm in Ø1.5 mm PTFE
-pair_capacitance(w, spacing=1.5e-3).capacitance          # touching: 44.4 pF/m
+pickup = SolenoidCoil(1.0e-3, 2.0e-3, 0.150, 5, position=[0, 0, 0.065])  # coaxial with coil
+net = CoilNetwork([coil, pickup], ground=["end", "end"])  # "end" / "start" / "floating"
+res = net.solve(np.geomspace(1e5, 3e7, 400))
+res.z_in(0)                   # input impedance of coil 0 (coil 1 open)
+res.effective_inductance(0)   # Im Z / ω
+res.transfer_impedance(1, 0)  # Z21: open-circuit V at coil 1 per ampere into coil 0
+res.loaded_voltage(50.0)      # V at coil 1 across 50 Ω per ampere into coil 0
+net.srf()                     # first parallel resonance at port 0 [Hz]
+net.resonance()               # Resonance(freq, q, r_parallel); Q includes dielectric loss
 ```
 
-Checks:
+* **Topology:** every turn is a branch `R + jωL`. The branches are coupled through the full
+  turn-to-turn inductance matrix and through the Maxwell capacitance matrix between turns,
+  mapped onto the winding nodes.
+* **Other ports:** `ports=[Port(...), ...]` defines any fixture.
+* **Diagnostics:** `coupling="magnetic"` or `"electric"` keeps only one coupling path between
+  coils.
+* **`coilcal.vna`:** Z→S conversion, series- and shunt-thru fixtures (`thru_network`), and
+  currents driven by a source power (`driven_turn_currents`).
 
-* the closed-form bare pair (to 1e-9);
-* the εr → 1 and εr → ∞ limits;
-* the effective-radius formula b·(a/b)^(1/εr), which becomes exact at large spacing;
-* an independent panel BEM (about 1e-3, limited by the BEM).
+### Insulated wire pair (2-D)
 
-The GUI's **Wire pair C** tab wraps it with a field map, C′ vs spacing, and the pair viewed
-as a two-wire line (Z0, velocity factor). The coil model does not use it yet.
+```python
+from coilcal.wirepair import InsulatedWire, pair_capacitance
 
-## Caveats at 5 MHz with a 150 mm former
+w = InsulatedWire(1e-3, 1.5e-3, Dielectric(2.1, 2e-4))   # Ø1 mm in Ø1.5 mm PTFE
+r = pair_capacitance(w, spacing=1.5e-3)                  # sleeves touching
+r.capacitance, r.tan_delta                               # 44.4 pF/m, effective tanδ
+```
 
-Each turn is ~0.47 m of wire (λ = 60 m at 5 MHz). `check_quasistatic` shows that:
+* **What it is:** a stand-alone calculator for C′ between two long parallel wires with
+  dielectric sleeves in air. It is not used by the coil model.
+* **As a transmission line:** using one wire as the forward conductor and the other as the
+  return is the same differential mode the calculation assumes. So
+  Z0 = 1/(c₀√(C′·C′_air)) is what you would measure.
 
-* ~12 turns already reach 0.1 λ of conductor, and the Medhurst SRF estimate for 10 turns is
-  ~8.6 MHz: apparent inductance at 5 MHz is then ~50 % above the static value.
-* 50 turns (100 mm long) have an estimated SRF of ~3 MHz, below the operating band.
+### Enums and typing
 
-So the static field *shape* stays valid for few-turn coils, but the terminal L and the EMF
-measured at the terminals need the SRF correction (or fewer turns / smaller coils).
+* **Mode-like arguments are `StrEnum`s** in `coilcal.types`: `Grounding`, `Coupling`,
+  `FieldModel`, `MutualMethod`, `ThruMode`, `TerminalEnd`.
+* **Plain strings such as `"end"` are accepted but validated,** so a typo raises `ValueError`.
+* **The package is type-checked:** `uv run mypy`.
+
+## GUI (`uv run coilcal-gui`)
+
+**Left panel:**
+* **Each coil:** geometry, terminals, and insulation/former materials. Each material has a
+  preset plus editable εr and tan δ.
+* **Placement of B:** a gap measured either edge-to-edge or centre-to-centre, plus a lateral
+  offset.
+* **VNA setup:** A on P1 with B on P2, or one coil series-thru or shunt-thru. Also Z0 and
+  source power.
+* **Analysis settings:** sweep range, view frequency, B's load, R factor and coupling paths.
+
+**Tabs:**
+
+| tab | shows |
+|---|---|
+| Cross-section | wires at true size and pitch on the former wall; fill = turn current or voltage for the VNA drive |
+| Side view | \|B\| map and field lines in the x–z plane for the VNA drive |
+| Bz profiles | in-phase Bz along the axis and across at a chosen height; dotted = uniform-current (quasi-DC) shape |
+| Impedance | Z_in of each coil (other open) vs the quasi-DC R + jωL; L_eff/L_DC |
+| Transfer A→B | Z21 vs jωM, and the voltage into the chosen load |
+| VNA | S-parameters (dB, phase, Smith) of the chosen setup |
+| Turn currents | current per turn and voltage per node |
+| Wire pair C | the 2-D insulated-pair calculator, with field map, C′ vs gap, and Z0 / velocity factor |
+
+**Summary panel, per coil:**
+
+| quantity | meaning |
+|---|---|
+| L_DC | static inductance |
+| L_eff, X/R | from the network at the view frequency; hidden near or above any resonance of the system, where they stop meaning inductance or Q |
+| Q_L = ωL_DC/R_ac | copper-only Q, valid well below resonance |
+| f_SRF and Q_SRF | resonance of the coil alone; Q includes conductor and dielectric loss |
+| f_res | the same resonance with the other coil present but open (shown when it differs) |
+| f_SRF without dielectrics | the same coil with vacuum insulation and no former |
+| Medhurst SRF | the empirical estimate, for comparison |
+
+Warnings flag a view frequency near a resonance, a tight pitch with no proximity correction
+(R factor = 1), and l/D outside Medhurst's fitted range.
+
+## Models
+
+| quantity | method |
+|---|---|
+| B-field | magpylib: one `Circle` per turn, or a `Polyline` helix (pitch and axial current) |
+| L | Σ round-wire loop self-inductance with skin-effect internal inductance (Bessel) + Σ Maxwell turn-pair mutuals |
+| M | turn-pair sums: Maxwell elliptic formula (coaxial) or ∮A·dl of the analytic ring vector potential, adaptive trapezoid (any pose) |
+| R_ac | isolated-wire skin effect × `r_factor` (proximity effect not computed) |
+| C between turns, coaxial coils | axisymmetric charge simulation. Insulation enters as an exact per-harmonic Dirichlet-to-Neumann condition on the sleeve surface. The former is a boundary-element tube carrying bound charge. Charges per turn are increased automatically for tight windings |
+| C between turns, non-coaxial coils | thin-wire potential coefficients averaged around each ring; each former acts only within its own coaxial group |
+| network | modified nodal analysis per frequency; lossy dielectrics make C complex |
+| resonance Q | slope of the port susceptance, `Q = (ω0/2G)·dB/dω` |
+| wire pair | 2-D multipole expansion with an exact reflection coefficient per harmonic for each sleeve |
+
+Sign convention: positive current circulates CCW about the coil's local +z axis. M > 0 when
+positive currents aid each other; flipping a coil by 180° flips the sign of M.
+
+## Validation (tests)
+
+| model | checked against | agreement |
+|---|---|---|
+| self-inductance L | Nagaoka + Rosa corrections | 1e-4 |
+| self-inductance L | Wheeler | 2% |
+| mutual inductance M | magpylib flux through each turn | 1e-5 |
+| mutual inductance M | dipole far field, reciprocity | — |
+| on-axis B | exact ring sum and current-sheet formula | — |
+| capacitance, bare wire | torus formula | 1e-3 |
+| capacitance, bare wire | two-wire line | 1e-3 |
+| insulated turns of a 10 m-radius coil | exact 2-D insulated pair, incl. touching turns | 2e-3 |
+| former + wires | independent 2-D panel BEM (`tests/_bem2d.py`) | 0.1–0.5% |
+| network at low frequency | static L, M, R | 1e-6 |
+| network | reciprocity | — |
+| Q_SRF | f0 / (−3 dB bandwidth) | 2% |
+| S-parameters | ideal series/shunt thru formulas | — |
+| S-parameters | passivity | — |
+| wire pair | closed-form bare pair | 1e-9 |
+| wire pair | εr → 1 and εr → ∞ limits | — |
+| wire pair | effective-radius limit | — |
+| wire pair | independent BEM | 1e-3 |
+
+Relative comparisons use `pytest.approx(..., rel=..., abs=0)`. Without `abs=0`, the default
+absolute tolerance of 1e-12 swamps pF-scale values.
+
+## Typical numbers and caveats (150 mm former, 1 mm wire, 2 mm pitch, end grounded)
+
+| turns | wire / λ at 5 MHz | network SRF bare → enamel + 3 mm PMMA | Q_SRF bare → dielectrics | L_eff / L at 5 MHz | Medhurst SRF |
+|---|---|---|---|---|---|
+| 5 | 0.04 | 25.4 → 22.1 MHz | 1280 → 170 | 1.04 → 1.05 | 13.2 MHz |
+| 10 | 0.08 | 13.7 → 12.2 MHz | 1550 → 210 | 1.15 → 1.20 | 8.5 MHz |
+| 20 | 0.16 | 7.6 → 7.1 MHz | 1790 → 300 | 1.76 → 2.0 | 5.6 MHz |
+| 30 | 0.24 | 5.5 → 5.2 MHz | 1900 → 390 | near resonance | 4.4 MHz |
+| 50 | 0.40 | 3.7 → 3.5 MHz | 1970 → 560 | above resonance | 3.2 MHz |
+
+* **Use well below resonance:** the static field *shape* holds, but terminal L and EMF need
+  the network model above about 0.3 × SRF.
+* **Dielectric loss dominates Q at resonance,** even for enamel (tanδ 0.01) on PMMA (0.015).
+  The tan δ values are assumptions; the computed Q follows them almost one-for-one.
+* **Medhurst predicts lower SRFs than this free-space solver.** His values are measured
+  fits, made in his measurement environment.
+* **What a VNA sees:** an uncompensated cable or fixture capacitance adds directly to the
+  coil's (50 Ω coax is about 100 pF/m). Calibrate at the coil terminals.
+* **Not modelled:**
+  * the proximity effect (set `r_factor`; about 1.2–3 for pitch < 2.5 × wire Ø);
+  * radiation;
+  * nearby metal, ground planes and the measurement fixture;
+  * frequency-dependent εr and tan δ;
+  * other coils' formers when the coils are not coaxial.
+* **Speed:** close-wound coils with many turns are slow, about 30 s for 100 turns. Results
+  are cached per geometry.
+
+## Layout
+
+```
+src/coilcal/
+  geometry.py     SolenoidCoil, Former
+  materials.py    Dielectric, Material presets
+  types.py        StrEnums, Port, array type aliases
+  loops.py        ring/filament kernels: mutual inductance, vector potential, skin effect
+  field.py        magpylib models, on-axis formulas
+  inductance.py   self-inductance and the Nagaoka/Rosa/Wheeler checks, R_ac
+  mutual.py       mutual inductance, coupling, EMF
+  capacitance.py  turn capacitance matrix (CSM + sleeve DtN + former BEM), cached
+  circuit.py      CoilNetwork (MNA), NetworkResult, Resonance
+  vna.py          S-parameters, thru fixtures, source drive
+  srf.py          Medhurst estimates, quasi-static validity report
+  wirepair.py     2-D insulated wire pair
+  gui/            Qt app: model.py (pure compute), plots.py, richtext.py, pair*.py, window.py
+tests/            pytest; _bem2d.py is the independent 2-D BEM reference
+examples/         demo.py (CLI, writes examples/out/), demo.ipynb
+```

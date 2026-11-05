@@ -7,8 +7,12 @@ Maxwell capacitance matrix between turns is mapped onto nodes by assigning each 
 potential of its two end nodes. Each turn is electrically small (one 150 mm turn ~ 0.5 m << the
 60 m wavelength at 5 MHz), so retardation inside a turn is neglected; radiation is ignored.
 
-The resulting network captures self-resonance, non-uniform current along the winding, and
-inductive + capacitive coupling between coils. It is solved by modified nodal analysis.
+The capacitance matrix (:mod:`coilcal.capacitance`) includes the wire insulation and the
+former's dielectric; lossy dielectrics make it complex, so ``jωC`` carries the dielectric loss.
+
+The resulting network captures self-resonance (:meth:`CoilNetwork.resonance` gives its Q),
+non-uniform current along the winding, and inductive + capacitive coupling between coils. It
+is solved by modified nodal analysis.
 """
 
 from __future__ import annotations

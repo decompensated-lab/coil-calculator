@@ -1,6 +1,9 @@
-"""Self-capacitance / self-resonance estimates and quasi-static validity checks.
+"""Quick self-capacitance / self-resonance estimates and quasi-static validity checks.
 
-These are engineering estimates (typically +-10-20 %), not field solutions.
+These use Medhurst's empirical formula (bare wire, no former, fitted to measurements in his
+set-up), not a field solution. For the field-solved resonance including insulation, former
+and dielectric loss use ``CoilNetwork([coil], ground=...).resonance()``; for short, wide
+coils it typically lies well above the Medhurst estimate.
 """
 
 from __future__ import annotations
@@ -87,7 +90,8 @@ def check_quasistatic(
     if f_max > max_srf_ratio * rep.srf:
         boost = 1 / (1 - min(f_max / rep.srf, 0.999) ** 2) - 1
         rep.warnings.append(
-            f"f_max is {f_max / rep.srf:.2f} x SRF; apparent inductance off by ~{boost:.0%}"
+            f"f_max is {f_max / rep.srf:.2f} x the Medhurst SRF estimate; apparent inductance "
+            f"off by up to ~{boost:.0%} (CoilNetwork gives the field-solved value)"
             if f_max < rep.srf
             else f"f_max is ABOVE the estimated SRF ({f_max / rep.srf:.2f} x)"
         )

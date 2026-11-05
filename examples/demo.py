@@ -2,8 +2,9 @@
 
     uv run python examples/demo.py [--turns-a 10] [--turns-b 5] [--freq 5e6] [--gap 0.05]
 
-Prints inductances, the quasi-static validity report and induced EMF, and writes plots to
-``examples/out/``.
+Prints inductances, the quick (Medhurst) validity report, induced EMF, and the field-solved
+self-resonance of coil A from the turn-level network: bare, and enamelled on a PMMA former.
+Writes plots to ``examples/out/``.
 """
 
 from __future__ import annotations
@@ -135,6 +136,22 @@ def main() -> None:
     print(f"M = {m * 1e6:.4g} uH, k = {k:.4f}")
     print(f"1 A at {f / 1e6:.3g} MHz in A: open-circuit EMF in B = {abs(v):.4g} V "
           f"(phase {np.degrees(np.angle(v)):.0f} deg), into 50 ohm = {abs(v50):.4g} V")  # fmt: skip
+
+    print("\n=== coil A, turn-level network (one end grounded) ===")
+    insulated = {
+        "insulation_d": 1.06e-3,
+        "insulation": cc.Material.ENAMEL.dielectric,
+        "former": cc.Former(3e-3, cc.Material.PMMA.dielectric, overhang=10e-3),
+    }
+    for label, coil in (
+        ("bare, no former", a),
+        ("enamel on 3 mm PMMA", make_coil(args.turns_a, **insulated)),
+    ):
+        net = cc.CoilNetwork([coil], ground="end")
+        res = net.resonance()
+        l_eff = net.solve([f]).effective_inductance(0)[0]
+        print(f"{label:20s}: SRF {res.freq / 1e6:.3g} MHz, Q_SRF {res.q:.0f}, "
+              f"L_eff({f / 1e6:.3g} MHz) / L_DC = {l_eff / cc.self_inductance(coil):.3f}")  # fmt: skip
 
     plot_field_map(a, out)
     plot_mutual(a, make_coil(args.turns_b), out)
