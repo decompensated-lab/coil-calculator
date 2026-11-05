@@ -34,6 +34,8 @@ from .mutual import mutual_matrix
 
 Ground = Literal["start", "end"] | None
 Coupling = Literal["full", "magnetic", "electric"]
+Terminal = tuple[int, Literal["start", "end"]] | None  # (coil index, which end); None = reference
+REF = -1  # node index used for the reference (infinity / grounded shield)
 
 
 @dataclass
@@ -81,7 +83,9 @@ class NetworkResult:
 
 
 class CoilNetwork:
-    """Turn-level network of coils. Each coil gets one port across its two terminals.
+    """Turn-level network of coils.
+
+    By default each coil gets one port across its two terminals (current enters at "start").
 
     Parameters
     ----------
@@ -96,6 +100,10 @@ class CoilNetwork:
         mutual inductance (diagnostic for separating coupling paths).
     r_factor
         Multiplier on the isolated-wire skin-effect resistance (proximity effect).
+    ports
+        Optional explicit ports as ``(plus, minus)`` terminal pairs, each terminal being
+        ``(coil_index, "start"|"end")`` or ``None`` for the reference node. E.g. a series-thru
+        fixture: ``[((0, "start"), None), ((0, "end"), None)]``.
     """
 
     def __init__(
@@ -106,6 +114,7 @@ class CoilNetwork:
         r_factor: float = 1.0,
         rho: float = RHO_CU,
         n_sub: int = 16,
+        ports: Sequence[tuple[Terminal, Terminal]] | None = None,
     ) -> None:
         self.coils = list(coils)
         nc = len(self.coils)
@@ -176,11 +185,21 @@ class CoilNetwork:
                 raise ValueError(f"ground must be None/'start'/'end', got {g!r}")
         self.free_nodes = np.setdiff1d(np.arange(nn), grounded)
 
-        # ports: (start node, end node) of each coil; current enters at start
-        self.ports = [
-            (self.node_offsets[i], self.node_offsets[i] + c.n_turns)
-            for i, c in enumerate(self.coils)
-        ]
+        # ports as (plus node, minus node); current enters the network at "plus"
+        if ports is None:
+            ports = [((i, "start"), (i, "end")) for i in range(nc)]
+        self.ports = [(self.terminal_node(p), self.terminal_node(m)) for p, m in ports]
+
+    def terminal_node(self, terminal: Terminal) -> int:
+        """Global node index of ``(coil, "start"|"end")``; ``None`` -> :data:`REF`."""
+        if terminal is None:
+            return REF
+        coil, end = terminal
+        if end == "start":
+            return int(self.node_offsets[coil])
+        if end == "end":
+            return int(self.node_offsets[coil] + self.coils[coil].n_turns)
+        raise ValueError(f"terminal end must be 'start' or 'end', got {end!r}")
 
     # ------------------------------------------------------------------------------------
     def turn_slice(self, coil: int) -> slice:
@@ -228,12 +247,12 @@ class CoilNetwork:
                 ]
             )
             x = np.linalg.solve(m, rhs)
-            v = np.zeros((nn, n_ports), dtype=complex)
+            v = np.zeros((nn + 1, n_ports), dtype=complex)  # extra last row = REF (0 V)
             v[fn] = x[:nf]
-            v_node[fi] = v.T
+            v_node[fi] = v[:nn].T
             i_turn[fi] = x[nf:].T
             for q, (n_plus, n_minus) in enumerate(self.ports):
-                z[fi, q] = v[n_plus] - v[n_minus]
+                z[fi, q] = v[n_plus] - v[n_minus]  # REF = -1 hits the zero row
         return NetworkResult(self, freqs, z, i_turn, v_node)
 
     # ------------------------------------------------------------------------------------
@@ -255,18 +274,30 @@ class CoilNetwork:
 
         return float(brentq(g, fs[k], fs[k + 1], xtol=1e-6 * fs[k]))
 
-    def field_B(self, result: NetworkResult, points, freq_index: int = 0, port: int = 0):
-        """Complex B phasor [T] at global ``points`` for 1 A into ``port`` (others open)."""
+    def unit_fields(self, points) -> np.ndarray:
+        """B [T] at ``points`` per ampere in each turn, shape (T, *points.shape)."""
         pts = np.asarray(points, dtype=float)
-        flat = pts.reshape(-1, 3)
-        unit = []
-        for c in self.coils:
-            for center in c.turn_centers():
-                unit.append(
-                    magpy.current.Circle(
-                        position=center, orientation=c.orientation, diameter=c.mean_d, current=1.0
-                    )
-                )
-        g = np.asarray(magpy.getB(unit, flat)).reshape(len(unit), -1, 3)
-        b = np.einsum("t,tpk->pk", result.turn_currents[freq_index, port], g)
-        return b.reshape(pts.shape)
+        unit = [
+            magpy.current.Circle(
+                position=center, orientation=c.orientation, diameter=c.mean_d, current=1.0
+            )
+            for c in self.coils
+            for center in c.turn_centers()
+        ]
+        g = np.asarray(magpy.getB(unit, pts.reshape(-1, 3), squeeze=False))
+        return g.reshape((len(unit), *pts.shape))
+
+    def field_B(
+        self,
+        result: NetworkResult,
+        points,
+        freq_index: int = 0,
+        port: int = 0,
+        turn_currents: np.ndarray | None = None,
+    ):
+        """Complex B phasor [T] at global ``points``.
+
+        Uses ``turn_currents`` (shape (T,)) if given, else 1 A into ``port`` (others open).
+        """
+        i = result.turn_currents[freq_index, port] if turn_currents is None else turn_currents
+        return np.tensordot(i, self.unit_fields(points), axes=1)
