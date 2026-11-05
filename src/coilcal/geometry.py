@@ -7,9 +7,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-
-def _as_rotation(orientation: Rotation | None) -> Rotation:
-    return Rotation.identity() if orientation is None else orientation
+from .types import ArrayLike, FloatArray, Handedness
 
 
 @dataclass(frozen=True)
@@ -35,7 +33,7 @@ class SolenoidCoil:
         Outer diameter of insulated wire [m]; defaults to ``wire_d``. Only affects
         where the wire centre sits relative to the former.
     handedness
-        +1 for right-handed helix, -1 for left-handed (only used by the helix model).
+        :class:`Handedness` of the helix (only used by the helix field model).
 
     Convention: positive current circulates counter-clockwise about the local +z axis,
     so a positive current produces +z field inside the coil.
@@ -45,21 +43,27 @@ class SolenoidCoil:
     pitch: float
     former_d: float
     n_turns: int
-    position: np.ndarray = field(default_factory=lambda: np.zeros(3))
-    orientation: Rotation | None = None
+    position: FloatArray = field(default_factory=lambda: np.zeros(3))
+    orientation: Rotation = field(default_factory=Rotation.identity)
     insulation_d: float | None = None
-    handedness: int = 1
+    handedness: Handedness = Handedness.RIGHT
 
     def __post_init__(self) -> None:
+        # normalise loosely typed inputs (lists, None, ints) and validate
         object.__setattr__(self, "position", np.asarray(self.position, dtype=float).reshape(3))
-        object.__setattr__(self, "orientation", _as_rotation(self.orientation))
+        if self.orientation is None:
+            object.__setattr__(self, "orientation", Rotation.identity())
+        if not isinstance(self.orientation, Rotation):
+            raise TypeError("orientation must be a scipy.spatial.transform.Rotation")
         if int(self.n_turns) != self.n_turns or self.n_turns < 1:
             raise ValueError("n_turns must be a positive integer")
         object.__setattr__(self, "n_turns", int(self.n_turns))
+        for name in ("wire_d", "pitch", "former_d"):
+            if not getattr(self, name) > 0:
+                raise ValueError(f"{name} must be positive")
         if self.pitch < self.outer_wire_d:
             raise ValueError(f"pitch ({self.pitch}) < wire outer diameter ({self.outer_wire_d})")
-        if self.handedness not in (1, -1):
-            raise ValueError("handedness must be +1 or -1")
+        object.__setattr__(self, "handedness", Handedness(self.handedness))
 
     # --- derived geometry -------------------------------------------------------------
     @property
@@ -90,23 +94,23 @@ class SolenoidCoil:
         return self.n_turns * np.hypot(2 * np.pi * self.mean_radius, self.pitch)
 
     @property
-    def axis(self) -> np.ndarray:
+    def axis(self) -> FloatArray:
         """Unit coil axis in global coordinates."""
         return self.orientation.apply([0.0, 0.0, 1.0])
 
     # --- discretisations --------------------------------------------------------------
-    def turn_z(self) -> np.ndarray:
+    def turn_z(self) -> FloatArray:
         """Local axial positions of the N turns (ring model), centred on 0 [m]."""
         n = self.n_turns
-        return (np.arange(n) - (n - 1) / 2) * self.pitch
+        return (np.arange(n, dtype=np.float64) - (n - 1) / 2) * self.pitch
 
-    def turn_centers(self) -> np.ndarray:
+    def turn_centers(self) -> FloatArray:
         """Global centres of the N turns, shape (N, 3)."""
         local = np.zeros((self.n_turns, 3))
         local[:, 2] = self.turn_z()
         return self.to_global(local)
 
-    def helix_points_local(self, pts_per_turn: int = 72) -> np.ndarray:
+    def helix_points_local(self, pts_per_turn: int = 72) -> FloatArray:
         """Helix centreline in the local frame, shape (N*pts_per_turn+1, 3).
 
         Runs from z = -N*p/2 to +N*p/2 (same extent as the equivalent current sheet).
@@ -118,26 +122,28 @@ class SolenoidCoil:
         # Current always circulates CCW about +z (angle t increases along the path).
         # handedness=+1: z increases with t (right-handed, current flows -z -> +z);
         # handedness=-1: z decreases with t (left-handed, current flows +z -> -z).
-        return np.column_stack([r * np.cos(t), r * np.sin(t), self.handedness * z])
+        return np.column_stack([r * np.cos(t), r * np.sin(t), int(self.handedness) * z])
 
-    def helix_points(self, pts_per_turn: int = 72) -> np.ndarray:
+    def helix_points(self, pts_per_turn: int = 72) -> FloatArray:
         """Helix centreline in global coordinates."""
         return self.to_global(self.helix_points_local(pts_per_turn))
 
-    def to_global(self, local_pts: np.ndarray) -> np.ndarray:
+    def to_global(self, local_pts: ArrayLike) -> FloatArray:
         return self.orientation.apply(np.asarray(local_pts, dtype=float)) + self.position
 
-    def to_local(self, global_pts: np.ndarray) -> np.ndarray:
+    def to_local(self, global_pts: ArrayLike) -> FloatArray:
         return self.orientation.inv().apply(np.asarray(global_pts, dtype=float) - self.position)
 
-    def moved(self, position=None, orientation: Rotation | None = None) -> SolenoidCoil:
+    def moved(
+        self, position: ArrayLike | None = None, orientation: Rotation | None = None
+    ) -> SolenoidCoil:
         """Copy of this coil with a new pose."""
         return SolenoidCoil(
             wire_d=self.wire_d,
             pitch=self.pitch,
             former_d=self.former_d,
             n_turns=self.n_turns,
-            position=self.position if position is None else position,
+            position=self.position if position is None else np.asarray(position, dtype=float),
             orientation=self.orientation if orientation is None else orientation,
             insulation_d=self.insulation_d,
             handedness=self.handedness,

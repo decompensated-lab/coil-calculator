@@ -24,7 +24,7 @@ _PREFIX = [
 ]
 
 
-def si(x: float, unit: str, digits: int = 4) -> str:
+def si(x: float | None, unit: str, digits: int = 4) -> str:
     """Format with an SI prefix, e.g. ``si(2.3e-6, 'H') -> '2.3 µH'``."""
     if x is None or not np.isfinite(x):
         return "—"
@@ -53,7 +53,7 @@ def tex(expr: str, color: str = "#1f1f1e", size: float = 13.0, scale: float = 2.
     )
 
 
-def _row(sym: str, value: str, note: str = "", ink: str = "#1f1f1e", muted: str = "#6b6a64"):
+def _row(sym: str, value: str, note: str = "", ink: str = "#1f1f1e", muted: str = "#6b6a64") -> str:
     return (
         f"<tr><td style='padding:1px 10px 1px 0'>{tex(sym, ink)}</td>"
         f"<td align='right' style='padding:1px 8px'><b>{value}</b></td>"
@@ -69,7 +69,7 @@ def summary_html(r: Results, dark: bool = False) -> str:
     w = 2 * np.pi * f
     lam = 299_792_458 / f
 
-    def row(sym, val, note=""):
+    def row(sym: str, val: str, note: str = "") -> str:
         return _row(sym, val, note, ink, muted)
 
     cols = []
@@ -89,7 +89,7 @@ def summary_html(r: Results, dark: bool = False) -> str:
             row(
                 r"f_\mathrm{SRF}",
                 si(r.srf_net[k], "Hz"),
-                f"network, {r.params.grounds[k] or 'floating'}",
+                f"network, {r.params.grounds[k].label}",
             ),
             row(
                 r"f_\mathrm{SRF}^\mathrm{Medhurst}",

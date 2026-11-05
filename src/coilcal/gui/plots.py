@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 
-from .model import VNA_SETUPS, Results
+from ..types import FloatArray
+from .model import Fill, Results, SetupKind
 
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 INK, MUTED, GRID = "#1f1f1e", "#6b6a64", "#e4e3de"
 COIL_COLORS = (BLUE, ORANGE)
 
 
-def _style(ax, grid: bool = True):
+def _style(ax: Axes, grid: bool = True) -> None:
     if grid:
         ax.grid(True, color=GRID, lw=0.8)
     else:
@@ -27,35 +29,38 @@ def _style(ax, grid: bool = True):
     ax.tick_params(colors=MUTED)
 
 
-def _vline_view(r: Results, *axes):
+def _vline_view(r: Results, *axes: Axes) -> None:
     for ax in axes:
         ax.axvline(r.f_view / 1e6, color=MUTED, lw=1)
 
 
-def _turn_values(r: Results, k: int, fill: str):
+def _turn_values(r: Results, k: int, fill: Fill) -> FloatArray | None:
     i = r.drive_turn_i[r.i_view]
     v = r.drive_node_v[r.i_view]
-    if fill == "|I|":
+    if fill is Fill.CURRENT:
         return np.abs(i[r.vna_net.turn_slice(k)])
-    if fill == "|V|":
+    if fill is Fill.VOLTAGE:
         vn = v[r.vna_net.node_slice(k)]
         return np.abs(0.5 * (vn[:-1] + vn[1:]))
     return None
 
 
 def _coil_name(r: Results, k: int) -> str:
-    if r.vna_kind == "pair":
+    if r.vna_kind is SetupKind.PAIR:
         return "AB"[k]
-    return "AB"[VNA_SETUPS[r.params.vna_setup][1]]
+    idx = r.params.vna_setup.coil
+    assert idx is not None
+    return "AB"[idx]
 
 
 # ---------------------------------------------------------------------------------------
-def draw_cross_section(fig: Figure, r: Results, fill: str = "|I|") -> None:
+def draw_cross_section(fig: Figure, r: Results, fill: Fill | str = Fill.CURRENT) -> None:
     """One strip per coil: the wire cross-sections ('ooooooo') at true wire size and pitch.
 
     Each strip is cropped to its own winding so 1 mm wires stay legible next to a 150 mm
     former. Horizontal = position along A's axis; vertical = radius.
     """
+    fill = Fill(fill)
     fig.clear()
     coils = r.vna_coils
     axes = fig.subplots(len(coils), 1, squeeze=False)[:, 0]
@@ -93,7 +98,7 @@ def draw_cross_section(fig: Figure, r: Results, fill: str = "|I|") -> None:
         ax.set_ylabel("r [mm]")
         ax.set_xlabel("position along coil A axis [mm]", fontsize=8, color=MUTED)
         extra = ""
-        if name == "B" and r.vna_kind == "pair" and r.params.offset_mm:
+        if name == "B" and r.vna_kind is SetupKind.PAIR and r.params.offset_mm:
             extra = f" — lateral offset {r.params.offset_mm:g} mm (projected on A's axis)"
         ax.set_title(
             f"coil {name}: {c.n_turns} turns, wire Ø{c.wire_d * 1e3:g} mm, pitch "
@@ -103,7 +108,7 @@ def draw_cross_section(fig: Figure, r: Results, fill: str = "|I|") -> None:
             fontsize=9,
         )
     if sm is not None:
-        label = "|I_turn| [A peak]" if fill == "|I|" else "|V_turn| [V peak]"
+        label = "|I_turn| [A peak]" if fill is Fill.CURRENT else "|V_turn| [V peak]"
         fig.colorbar(sm, ax=list(axes), label=label, shrink=0.9)
     fig.suptitle(
         f"Winding cross-section — {r.params.vna_setup}, {r.params.p_dbm:g} dBm, "
@@ -226,7 +231,7 @@ def draw_transfer(fig: Figure, r: Results) -> None:
 
 
 # ---------------------------------------------------------------------------------------
-def smith_grid(ax) -> None:
+def smith_grid(ax: Axes) -> None:
     """Minimal Smith chart grid (constant-r circles and constant-x arcs)."""
     t = np.linspace(0, 2 * np.pi, 400)
     ax.plot(np.cos(t), np.sin(t), color=MUTED, lw=1)
@@ -260,7 +265,7 @@ def draw_vna(fig: Figure, r: Results) -> None:
     f = r.freqs / 1e6
     s = r.s
     traces = [("S11", s[:, 0, 0], BLUE), ("S21", s[:, 1, 0], ORANGE)]
-    if r.vna_kind == "pair":
+    if r.vna_kind is SetupKind.PAIR:
         traces.append(("S22", s[:, 1, 1], AQUA))
     for name, y, col in traces:
         ax_db.semilogx(f, 20 * np.log10(np.maximum(np.abs(y), 1e-15)), color=col, label=name)
@@ -277,7 +282,7 @@ def draw_vna(fig: Figure, r: Results) -> None:
         _style(ax)
     smith_grid(ax_sm)
     refl = [("S11", s[:, 0, 0], BLUE)]
-    if r.vna_kind == "pair":
+    if r.vna_kind is SetupKind.PAIR:
         refl.append(("S22", s[:, 1, 1], AQUA))
     for name, y, col in refl:
         ax_sm.plot(y.real, y.imag, color=col, lw=1.5, label=name)

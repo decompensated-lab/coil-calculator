@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any
 
 import magpylib as magpy
 import numpy as np
 
-from .field import Model, to_magpylib
+from .field import to_magpylib
 from .geometry import SolenoidCoil
 from .inductance import ac_resistance, self_inductance
 from .loops import mutual_coaxial, mutual_rings
+from .types import FieldModel, FloatArray, MutualMethod
 
 
 def _coaxial_sign(a: SolenoidCoil, b: SolenoidCoil, atol: float = 1e-12) -> int:
@@ -31,7 +32,7 @@ def mutual_matrix(
     n_phi: int | None = None,
     rtol: float = 1e-9,
     max_n_phi: int = 1 << 14,
-) -> np.ndarray:
+) -> FloatArray:
     """Turn-by-turn mutual inductances (N_a, N_b) [H] using the ring model.
 
     Coaxial coils use Maxwell's closed form; otherwise the vector-potential line integral is
@@ -44,7 +45,7 @@ def mutual_matrix(
         zb = np.dot(b.turn_centers() - a.position, a.axis)
         return sign * mutual_coaxial(a.mean_radius, b.mean_radius, zb[None, :] - za[:, None])
 
-    def run(n):
+    def run(n: int) -> FloatArray:
         return mutual_rings(
             a.mean_radius, a.orientation, a.turn_centers(),
             b.mean_radius, b.orientation, b.turn_centers(),
@@ -70,8 +71,8 @@ def mutual_matrix(
 def mutual_inductance(
     a: SolenoidCoil,
     b: SolenoidCoil,
-    method: Literal["rings", "flux"] = "rings",
-    **kwargs,
+    method: MutualMethod | str = MutualMethod.RINGS,
+    **kwargs: Any,
 ) -> float:
     """Mutual inductance between coils ``a`` and ``b`` [H].
 
@@ -82,18 +83,17 @@ def mutual_inductance(
 
     Sign: positive when positive currents in both coils produce aiding flux.
     """
-    if method == "rings":
+    method = MutualMethod(method)
+    if method is MutualMethod.RINGS:
         return float(mutual_matrix(a, b, **kwargs).sum())
-    if method == "flux":
-        return flux_linkage(a, b, current_a=1.0, **kwargs)
-    raise ValueError(f"unknown method {method!r}")
+    return flux_linkage(a, b, current_a=1.0, **kwargs)
 
 
 def flux_linkage(
     a: SolenoidCoil,
     b: SolenoidCoil,
     current_a: float = 1.0,
-    model: Model = "rings",
+    model: FieldModel | str = FieldModel.RINGS,
     n_r: int = 48,
     n_phi: int = 96,
     pts_per_turn: int = 180,

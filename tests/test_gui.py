@@ -7,10 +7,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
 from coilcal.gui import CoilParams, MainWindow, Params, compute, summary_html
-from coilcal.gui.model import VNA_SETUPS, check_overlap
+from coilcal.gui.model import Fill, GapRef, VnaSetup, check_overlap
 
 
-@pytest.mark.parametrize("setup", list(VNA_SETUPS))
+@pytest.mark.parametrize("setup", list(VnaSetup))
 def test_compute_all_vna_setups(setup):
     r = compute(Params(a=CoilParams(turns=8), b=CoilParams(turns=4), offset_mm=5, vna_setup=setup))
     assert r.s.shape[1:] == (2, 2)
@@ -24,7 +24,7 @@ def test_nested_coils_centre_reference():
     p = Params(
         a=CoilParams(turns=10),
         b=CoilParams(turns=4, former_d_mm=100),
-        gap_ref="centre-to-centre",
+        gap_ref=GapRef.CENTRE,
         gap_mm=0.0,
     )
     _a, b = p.coils()
@@ -48,7 +48,16 @@ def test_main_window_renders_all_tabs():
     app.processEvents()
     assert w._result is not None
     w.draw_all()
-    for fill in ("|V|", "none", "|I|"):
-        w.fill.setCurrentText(fill)
+    for fill in Fill:
+        w.fill.set_value(fill)
+        w.draw_all()
     assert w.box_a.wire.toolTip()
     w.close()
+
+
+def test_params_validate_strings_and_reject_typos():
+    p = Params(gap_ref="centre-to-centre", coupling="magnetic", vna_setup=VnaSetup.A_SHUNT.value)
+    assert p.gap_ref is GapRef.CENTRE and p.vna_setup is VnaSetup.A_SHUNT
+    with pytest.raises(ValueError, match="not a valid"):
+        Params(coupling="magnetc")
+    assert CoilParams(ground="floating").ground.terminal is None

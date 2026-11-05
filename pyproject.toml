@@ -37,6 +37,24 @@ line-length = 100
 dev = [
     "ipykernel>=7.4.0",
     "jupyterlab>=4.6.5",
+    "mypy>=2.4.1",
     "pytest>=9.2.0",
     "ruff>=0.17.3",
 ]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/coilcal"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = false
+no_implicit_optional = true
+strict_equality = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = ["scipy.*", "magpylib.*"]
+ignore_missing_imports = true

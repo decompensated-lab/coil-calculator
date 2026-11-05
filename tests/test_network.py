@@ -109,3 +109,19 @@ def test_network_field_matches_static_at_low_freq():
     r = net.solve([1e3])
     pts = np.array([[0, 0, 0.0], [0.05, 0.01, 0.03]])
     assert np.allclose(net.field_B(r, pts).real, cc.field_B(a, pts), rtol=1e-6)
+
+
+def test_enum_arguments_validated():
+    from coilcal.types import Coupling, Grounding, Port, TerminalEnd
+
+    a = typical(4)
+    with pytest.raises(ValueError, match="not a valid Coupling"):
+        CoilNetwork([a], coupling="magnetc")
+    with pytest.raises(ValueError, match="not a valid Grounding"):
+        CoilNetwork([a], ground="middle")
+    with pytest.raises(IndexError):
+        CoilNetwork([a], ports=[Port((1, TerminalEnd.START), None)])
+    # strings and enums are interchangeable
+    z1 = CoilNetwork([a], ground="end", coupling="full").solve([1e6]).z
+    z2 = CoilNetwork([a], ground=Grounding.END, coupling=Coupling.FULL).solve([1e6]).z
+    assert np.array_equal(z1, z2)

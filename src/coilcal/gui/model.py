@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any
 
 import numpy as np
 
@@ -11,18 +13,55 @@ from ..geometry import SolenoidCoil
 from ..inductance import ac_resistance, self_inductance
 from ..mutual import mutual_inductance
 from ..srf import self_capacitance_medhurst, srf_lumped
+from ..types import ComplexArray, Coupling, FloatArray, Grounding, TerminalEnd, ThruMode
 from ..vna import driven_turn_currents, incident_voltage, thru_network, z_to_s
 
-GROUND_CHOICES = {"end grounded": "end", "start grounded": "start", "floating": None}
-GAP_REFS = ("edge-to-edge", "centre-to-centre")
-# label -> (kind, coil index, thru mode)
-VNA_SETUPS = {
-    "A on P1, B on P2 (coupling)": ("pair", None, None),
-    "A series-thru (P1–A–P2)": ("thru", 0, "series"),
-    "A shunt-thru (A to ground)": ("thru", 0, "shunt"),
-    "B series-thru (P1–B–P2)": ("thru", 1, "series"),
-    "B shunt-thru (B to ground)": ("thru", 1, "shunt"),
-}
+
+class GapRef(StrEnum):
+    """Reference point for B's axial position."""
+
+    EDGE = "edge-to-edge"  # 0 = windings end to end (one pitch apart)
+    CENTRE = "centre-to-centre"  # 0 = B centred on A (nested)
+
+
+class SetupKind(StrEnum):
+    PAIR = "pair"
+    THRU = "thru"
+
+
+class VnaSetup(StrEnum):
+    """VNA configuration; the value is the GUI label."""
+
+    PAIR = "A on P1, B on P2 (coupling)"
+    A_SERIES = "A series-thru (P1–A–P2)"
+    A_SHUNT = "A shunt-thru (A to ground)"
+    B_SERIES = "B series-thru (P1–B–P2)"
+    B_SHUNT = "B shunt-thru (B to ground)"
+
+    @property
+    def kind(self) -> SetupKind:
+        return SetupKind.PAIR if self is VnaSetup.PAIR else SetupKind.THRU
+
+    @property
+    def coil(self) -> int | None:
+        """Index of the DUT coil for thru setups (0 = A, 1 = B)."""
+        return {VnaSetup.PAIR: None, VnaSetup.A_SERIES: 0, VnaSetup.A_SHUNT: 0}.get(self, 1)
+
+    @property
+    def mode(self) -> ThruMode | None:
+        if self in (VnaSetup.A_SERIES, VnaSetup.B_SERIES):
+            return ThruMode.SERIES
+        if self in (VnaSetup.A_SHUNT, VnaSetup.B_SHUNT):
+            return ThruMode.SHUNT
+        return None
+
+
+class Fill(StrEnum):
+    """What colours the wire circles in the cross-section."""
+
+    CURRENT = "|I|"
+    VOLTAGE = "|V|"
+    NONE = "none"
 
 
 @dataclass
@@ -31,9 +70,12 @@ class CoilParams:
     pitch_mm: float = 2.0
     former_d_mm: float = 150.0
     turns: int = 10
-    ground: str = "end grounded"
+    ground: Grounding = Grounding.END
 
-    def build(self, **pose) -> SolenoidCoil:
+    def __post_init__(self) -> None:
+        self.ground = Grounding.parse(self.ground)
+
+    def build(self, **pose: Any) -> SolenoidCoil:
         return SolenoidCoil(
             wire_d=self.wire_d_mm * 1e-3,
             pitch=self.pitch_mm * 1e-3,
@@ -48,7 +90,7 @@ class Params:
     a: CoilParams = field(default_factory=CoilParams)
     b: CoilParams = field(default_factory=lambda: CoilParams(turns=5))
     b_enabled: bool = True
-    gap_ref: str = "edge-to-edge"
+    gap_ref: GapRef = GapRef.EDGE
     gap_mm: float = 50.0
     offset_mm: float = 0.0
     f_min_mhz: float = 0.1
@@ -57,27 +99,35 @@ class Params:
     f_view_mhz: float = 5.0
     z_load: float = 50.0
     r_factor: float = 1.0
-    coupling: str = "full"
-    vna_setup: str = "A on P1, B on P2 (coupling)"
+    coupling: Coupling = Coupling.FULL
+    vna_setup: VnaSetup = VnaSetup.PAIR
     z0: float = 50.0
     p_dbm: float = 0.0
+
+    def __post_init__(self) -> None:
+        # accept plain strings (e.g. from tests or saved settings) but fail loudly on typos
+        self.gap_ref = GapRef(self.gap_ref)
+        self.coupling = Coupling(self.coupling)
+        self.vna_setup = VnaSetup(self.vna_setup)
+        if not 0 < self.f_min_mhz < self.f_max_mhz:
+            raise ValueError("need 0 < f_min < f_max")
 
     def coils(self) -> list[SolenoidCoil]:
         a = self.a.build()
         if not self.b_enabled:
             return [a]
         b0 = self.b.build()
-        if self.gap_ref == "centre-to-centre":
+        if self.gap_ref is GapRef.CENTRE:
             z = self.gap_mm * 1e-3
         else:
             z = (a.length + b0.length) / 2 + self.gap_mm * 1e-3
-        b = self.b.build(position=[self.offset_mm * 1e-3, 0.0, z])
+        b = self.b.build(position=np.array([self.offset_mm * 1e-3, 0.0, z]))
         check_overlap(a, b)
         return [a, b]
 
     @property
-    def grounds(self):
-        return [GROUND_CHOICES[self.a.ground], GROUND_CHOICES[self.b.ground]]
+    def grounds(self) -> list[Grounding]:
+        return [self.a.ground, self.b.ground]
 
 
 def check_overlap(a: SolenoidCoil, b: SolenoidCoil) -> None:
@@ -105,25 +155,25 @@ class Results:
     res: NetworkResult
     i_view: int
     l_dc: list[float]
-    l_f: list[np.ndarray]  # quasi-DC L(f) (internal inductance follows skin effect)
-    r_f: list[np.ndarray]  # skin-effect R(f) x r_factor
+    l_f: list[FloatArray]  # quasi-DC L(f) (internal inductance follows skin effect)
+    r_f: list[FloatArray]  # skin-effect R(f) x r_factor
     srf_net: list[float]
     srf_medhurst: list[float]
     c_medhurst: list[float]
     # VNA view
-    vna_kind: str
+    vna_kind: SetupKind
     vna_coils: list[SolenoidCoil]
     vna_net: CoilNetwork
     vna_res: NetworkResult
-    s: np.ndarray  # (F, 2, 2)
-    drive_turn_i: np.ndarray  # (F, T) turn currents for the VNA drive
-    drive_port_i: np.ndarray  # (F, 2)
-    drive_node_v: np.ndarray  # (F, Nn)
+    s: ComplexArray  # (F, 2, 2)
+    drive_turn_i: ComplexArray  # (F, T) turn currents for the VNA drive
+    drive_port_i: ComplexArray  # (F, 2)
+    drive_node_v: ComplexArray  # (F, Nn)
     v_plus: float
     # side-view field at f_view
-    field_x: np.ndarray
-    field_z: np.ndarray
-    field_b: np.ndarray  # (nz, nx, 3) complex [T]
+    field_x: FloatArray
+    field_z: FloatArray
+    field_b: ComplexArray  # (nz, nx, 3) complex [T]
     m_static: float = float("nan")
     k_static: float = float("nan")
     electric_fraction: float = float("nan")
@@ -134,11 +184,13 @@ class Results:
         return float(self.res.freqs[self.i_view])
 
     @property
-    def freqs(self) -> np.ndarray:
+    def freqs(self) -> FloatArray:
         return self.res.freqs
 
 
-def _field_grid(coils: list[SolenoidCoil], nx: int = 161, nz: int = 121):
+def _field_grid(
+    coils: list[SolenoidCoil], nx: int = 161, nz: int = 121
+) -> tuple[FloatArray, FloatArray]:
     r_max = max(c.mean_radius + abs(c.position[0]) for c in coils)
     z_lo = min(c.position[2] - c.length / 2 for c in coils)
     z_hi = max(c.position[2] + c.length / 2 for c in coils)
@@ -160,16 +212,18 @@ def compute(p: Params) -> Results:
     hi = max(p.f_max_mhz * 1e6 * 10, 1e9)
 
     # ---- VNA configuration -------------------------------------------------------------
-    kind, idx, mode = VNA_SETUPS[p.vna_setup]
-    if kind == "thru" and idx >= len(coils):
-        raise ValueError("enable coil B for a B thru setup")
-    if kind == "pair":
+    setup = p.vna_setup
+    if setup.kind is SetupKind.PAIR:
         if len(coils) < 2:
             raise ValueError("enable coil B for the A/B coupling setup")
         vna_coils, vna_net, vna_res = coils, net, res
     else:
-        g = grounds[idx] or "end"
-        vna_net = thru_network(coils[idx], mode, ground_end=g, r_factor=p.r_factor)
+        idx, mode = setup.coil, setup.mode
+        assert idx is not None and mode is not None
+        if idx >= len(coils):
+            raise ValueError("enable coil B for a B thru setup")
+        gnd = grounds[idx].terminal or TerminalEnd.END
+        vna_net = thru_network(coils[idx], mode, ground_end=gnd, r_factor=p.r_factor)
         vna_coils = vna_net.coils
         vna_res = vna_net.solve(freqs)
     s = z_to_s(vna_res.z, p.z0)
@@ -203,7 +257,7 @@ def compute(p: Params) -> Results:
         ],
         srf_medhurst=[srf_lumped(c) for c in coils],
         c_medhurst=[self_capacitance_medhurst(c) for c in coils],
-        vna_kind=kind,
+        vna_kind=setup.kind,
         vna_coils=vna_coils,
         vna_net=vna_net,
         vna_res=vna_res,
@@ -217,10 +271,12 @@ def compute(p: Params) -> Results:
         field_b=field_b,
     )
     if len(coils) == 2:
-        out.m_static = mutual_inductance(*coils)
+        out.m_static = mutual_inductance(coils[0], coils[1])
         out.k_static = out.m_static / np.sqrt(out.l_dc[0] * out.l_dc[1])
-        if p.coupling == "full":
-            ele = CoilNetwork(coils, ground=grounds, coupling="electric", r_factor=p.r_factor)
+        if p.coupling is Coupling.FULL:
+            ele = CoilNetwork(
+                coils, ground=grounds, coupling=Coupling.ELECTRIC, r_factor=p.r_factor
+            )
             z_e = ele.solve([f_view]).z[0, 1, 0]
             out.electric_fraction = abs(z_e) / abs(res.z[i_view, 1, 0])
 

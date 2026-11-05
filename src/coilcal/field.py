@@ -2,23 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 import magpylib as magpy
 import numpy as np
 from scipy.constants import mu_0
 
 from .geometry import SolenoidCoil
-
-Model = Literal["rings", "helix"]
+from .types import ArrayLike, FieldModel, FloatArray
 
 
 def to_magpylib(
     coil: SolenoidCoil,
     current: float = 1.0,
-    model: Model = "rings",
+    model: FieldModel | str = FieldModel.RINGS,
     pts_per_turn: int = 180,
-):
+) -> magpy.Collection | magpy.current.Polyline:
     """Build a magpylib source for the coil.
 
     ``model="rings"``: one ``current.Circle`` per turn (no pitch, no net axial current).
@@ -27,7 +24,8 @@ def to_magpylib(
     modelled, so the helix carries a net axial current (as the real winding does) without a
     return path.
     """
-    if model == "rings":
+    model = FieldModel(model)
+    if model is FieldModel.RINGS:
         return magpy.Collection(
             *[
                 magpy.current.Circle(
@@ -39,7 +37,7 @@ def to_magpylib(
                 for c in coil.turn_centers()
             ]
         )
-    if model == "helix":
+    if model is FieldModel.HELIX:
         verts = coil.helix_points_local(pts_per_turn)
         dphi = 2 * np.pi / pts_per_turn
         verts[:, :2] *= np.sqrt(dphi / np.sin(dphi))  # equal-area polygon
@@ -49,32 +47,34 @@ def to_magpylib(
             position=coil.position,
             orientation=coil.orientation,
         )
-    raise ValueError(f"unknown model {model!r}")
+    raise AssertionError(model)  # unreachable: enum is exhaustive
 
 
 def field_B(
     coil: SolenoidCoil,
-    points,
+    points: ArrayLike,
     current: float = 1.0,
-    model: Model = "rings",
-    **kwargs,
-) -> np.ndarray:
+    model: FieldModel | str = FieldModel.RINGS,
+    pts_per_turn: int = 180,
+) -> FloatArray:
     """Flux density B [T] at global ``points`` (shape (..., 3)) for coil current ``current`` [A]."""
-    src = to_magpylib(coil, current=current, model=model, **kwargs)
+    src = to_magpylib(coil, current=current, model=model, pts_per_turn=pts_per_turn)
     return np.asarray(magpy.getB(src, np.asarray(points, dtype=float), sumup=True))
 
 
-def B_axis_rings(coil: SolenoidCoil, z, current: float = 1.0) -> np.ndarray:
+def B_axis_rings(coil: SolenoidCoil, z: ArrayLike, current: float = 1.0) -> FloatArray:
     """Exact on-axis B_z of the ring model at local axial coordinate(s) ``z`` [T]."""
-    z = np.asarray(z, dtype=float)
+    zz = np.asarray(z, dtype=float)
     r = coil.mean_radius
-    dz = z[..., None] - coil.turn_z()
+    dz = zz[..., None] - coil.turn_z()
     return (mu_0 * current * r**2 / (2 * (r**2 + dz**2) ** 1.5)).sum(-1)
 
 
-def B_axis_sheet(coil: SolenoidCoil, z, current: float = 1.0) -> np.ndarray:
+def B_axis_sheet(coil: SolenoidCoil, z: ArrayLike, current: float = 1.0) -> FloatArray:
     """On-axis B_z of the equivalent uniform current sheet (length N*pitch) [T]."""
-    z = np.asarray(z, dtype=float)
+    zz = np.asarray(z, dtype=float)
     r, h = coil.mean_radius, coil.length / 2
     n = coil.n_turns / coil.length
-    return mu_0 * n * current / 2 * ((z + h) / np.hypot(r, z + h) - (z - h) / np.hypot(r, z - h))
+    return (
+        mu_0 * n * current / 2 * ((zz + h) / np.hypot(r, zz + h) - (zz - h) / np.hypot(r, zz - h))
+    )

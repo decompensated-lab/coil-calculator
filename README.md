@@ -7,8 +7,13 @@ Quasi-static modelling of single-layer cylindrical coils, parametrised like Coil
 uv sync
 uv run pytest -q
 uv run python examples/demo.py --turns-a 10 --turns-b 5 --freq 5e6 --gap 0.05
-uv run coilcal-gui        # Qt GUI: cross-section, impedance, transfer, turn currents
+uv run coilcal-gui        # Qt GUI (F1 = guide; hover any control for help)
+uv run mypy               # static type check (configured in pyproject.toml)
 ```
+
+Mode-like arguments are `StrEnum`s in `coilcal.types` (`Grounding`, `Coupling`, `FieldModel`,
+`MutualMethod`, `ThruMode`, `TerminalEnd`). Plain strings such as `"end"` are still
+accepted but are validated, so a typo raises `ValueError` instead of being silently ignored.
 
 ```python
 import coilcal as cc
@@ -62,7 +67,8 @@ mapped onto the winding nodes. `solve(freqs)` returns:
 * `net.srf()`: the first parallel resonance at a port.
 
 `coupling="magnetic"` or `"electric"` keeps only one inter-coil path, to split the two
-contributions.
+contributions. `ports=[Port(...), ...]` defines arbitrary fixtures. `coilcal.vna` adds Z→S
+conversion, series/shunt-thru fixtures and source-power drive.
 
 Checks: the low-frequency limit reproduces the static L, M and R to 1e-6. The capacitance
 solver matches an isolated torus and the two-wire line formula to about 1e-4. The network is

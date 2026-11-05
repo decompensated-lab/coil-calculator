@@ -7,36 +7,39 @@ Conventions: real reference impedance ``z0`` on every port, power waves
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any
 
 import numpy as np
 
 from .circuit import CoilNetwork, NetworkResult
 from .geometry import SolenoidCoil
+from .types import ArrayLike, ComplexArray, Grounding, Port, TerminalEnd, ThruMode
 
-ThruMode = Literal["series", "shunt"]
 
-
-def z_to_s(z: np.ndarray, z0: float = 50.0) -> np.ndarray:
+def z_to_s(z: ArrayLike, z0: float = 50.0) -> ComplexArray:
     """Convert Z-parameters (..., P, P) to S-parameters with reference ``z0``."""
-    z = np.asarray(z, dtype=complex)
-    eye = np.eye(z.shape[-1])
+    zc = np.asarray(z, dtype=complex)
+    eye = np.eye(zc.shape[-1])
     # S = (Z - z0 I)(Z + z0 I)^-1  ==  solve((Z + z0 I)^T, (Z - z0 I)^T)^T
-    lhs = np.swapaxes(z + z0 * eye, -1, -2)
-    rhs = np.swapaxes(z - z0 * eye, -1, -2)
+    lhs = np.swapaxes(zc + z0 * eye, -1, -2)
+    rhs = np.swapaxes(zc - z0 * eye, -1, -2)
     return np.swapaxes(np.linalg.solve(lhs, rhs), -1, -2)
 
 
-def series_thru_s(z_dut, z0: float = 50.0) -> tuple[np.ndarray, np.ndarray]:
+def series_thru_s(z_dut: ArrayLike, z0: float = 50.0) -> tuple[ComplexArray, ComplexArray]:
     """(S11, S21) of an ideal two-terminal impedance in series between two ports."""
-    z_dut = np.asarray(z_dut, dtype=complex)
-    return z_dut / (z_dut + 2 * z0), 2 * z0 / (z_dut + 2 * z0)
+    z = np.asarray(z_dut, dtype=np.complex128)
+    s11: ComplexArray = z / (z + 2 * z0)
+    s21: ComplexArray = 2 * z0 / (z + 2 * z0)
+    return s11, s21
 
 
-def shunt_thru_s(z_dut, z0: float = 50.0) -> tuple[np.ndarray, np.ndarray]:
+def shunt_thru_s(z_dut: ArrayLike, z0: float = 50.0) -> tuple[ComplexArray, ComplexArray]:
     """(S11, S21) of an ideal two-terminal impedance shunted to ground between two ports."""
-    z_dut = np.asarray(z_dut, dtype=complex)
-    return -z0 / (z0 + 2 * z_dut), 2 * z_dut / (z0 + 2 * z_dut)
+    z = np.asarray(z_dut, dtype=np.complex128)
+    s11: ComplexArray = -z0 / (z0 + 2 * z)
+    s21: ComplexArray = 2 * z / (z0 + 2 * z)
+    return s11, s21
 
 
 def incident_voltage(p_dbm: float, z0: float = 50.0) -> float:
@@ -45,39 +48,39 @@ def incident_voltage(p_dbm: float, z0: float = 50.0) -> float:
 
 
 def thru_network(
-    coil: SolenoidCoil, mode: ThruMode, ground_end: Literal["start", "end"] = "end", **kw
+    coil: SolenoidCoil,
+    mode: ThruMode | str,
+    ground_end: TerminalEnd | str = TerminalEnd.END,
+    **kw: Any,
 ) -> CoilNetwork:
     """Coil alone in a two-port through fixture.
 
-    ``series``: start terminal on port 1's centre conductor, end terminal on port 2's; nothing
+    ``SERIES``: start terminal on port 1's centre conductor, end terminal on port 2's; nothing
     grounded (the coil's capacitance to the reference/shields is kept).
-    ``shunt``: one terminal on the joined centre line of ports 1 and 2, the other
+    ``SHUNT``: one terminal on the joined centre line of ports 1 and 2, the other
     (``ground_end``) on the shields.
     """
-    coil = coil.moved(position=[0, 0, 0])
-    if mode == "series":
-        return CoilNetwork(
-            [coil], ground=None, ports=[((0, "start"), None), ((0, "end"), None)], **kw
-        )
-    if mode == "shunt":
-        hot = "start" if ground_end == "end" else "end"
-        return CoilNetwork(
-            [coil], ground=ground_end, ports=[((0, hot), None), ((0, hot), None)], **kw
-        )
-    raise ValueError(f"mode must be 'series' or 'shunt', got {mode!r}")
+    coil = coil.moved(position=np.zeros(3))
+    if ThruMode(mode) is ThruMode.SERIES:
+        ports = [Port((0, TerminalEnd.START), None), Port((0, TerminalEnd.END), None)]
+        return CoilNetwork([coil], ground=Grounding.FLOATING, ports=ports, **kw)
+    gnd = TerminalEnd(ground_end)
+    hot = TerminalEnd.START if gnd is TerminalEnd.END else TerminalEnd.END
+    ports = [Port((0, hot), None), Port((0, hot), None)]
+    return CoilNetwork([coil], ground=Grounding(gnd.value), ports=ports, **kw)
 
 
-def driven_port_currents(z: np.ndarray, emf: np.ndarray, z0: float = 50.0) -> np.ndarray:
+def driven_port_currents(z: ArrayLike, emf: ArrayLike, z0: float = 50.0) -> ComplexArray:
     """Port currents (F, P) with source EMFs ``emf`` (P,) behind ``z0`` on every port."""
-    z = np.asarray(z, dtype=complex)
-    eye = np.eye(z.shape[-1])
-    emf = np.broadcast_to(np.asarray(emf, dtype=complex), z.shape[:-1])
-    return np.linalg.solve(z + z0 * eye, emf[..., None])[..., 0]
+    zc = np.asarray(z, dtype=complex)
+    eye = np.eye(zc.shape[-1])
+    e = np.broadcast_to(np.asarray(emf, dtype=complex), zc.shape[:-1])
+    return np.linalg.solve(zc + z0 * eye, e[..., None])[..., 0]
 
 
 def driven_turn_currents(
-    res: NetworkResult, emf: np.ndarray, z0: float = 50.0
-) -> tuple[np.ndarray, np.ndarray]:
+    res: NetworkResult, emf: ArrayLike, z0: float = 50.0
+) -> tuple[ComplexArray, ComplexArray]:
     """Turn currents (F, T) and port currents (F, P) for VNA-style excitation.
 
     ``emf`` gives each port's source EMF (e.g. ``[2 V+, 0]`` to drive port 1 with all ports

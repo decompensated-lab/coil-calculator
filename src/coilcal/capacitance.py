@@ -19,19 +19,20 @@ from scipy.constants import epsilon_0
 from scipy.special import ellipk
 
 from .geometry import SolenoidCoil
+from .types import ArrayLike, FloatArray
 
 _K = 1 / (4 * np.pi * epsilon_0)
 
 
-def ring_potential(b, rho, z):
+def ring_potential(b: ArrayLike, rho: ArrayLike, z: ArrayLike) -> FloatArray:
     """Potential [V] at cylindrical (rho, z) of a ring of radius ``b`` in z=0 carrying 1 C."""
-    b, rho, z = np.broadcast_arrays(*(np.asarray(x, dtype=float) for x in (b, rho, z)))
-    d2 = (b + rho) ** 2 + z**2
-    m = 4 * b * rho / d2
+    bb, rr, zz = np.broadcast_arrays(*(np.asarray(x, dtype=float) for x in (b, rho, z)))
+    d2 = (bb + rr) ** 2 + zz**2
+    m = 4 * bb * rr / d2
     return _K * (2 / np.pi) * ellipk(m) / np.sqrt(d2)
 
 
-def _axial_frame(coils: Sequence[SolenoidCoil]):
+def _axial_frame(coils: Sequence[SolenoidCoil]) -> tuple[FloatArray, FloatArray] | None:
     """Common axis origin/direction for a coaxial group, or None if not coaxial."""
     ref = coils[0]
     ax = ref.axis
@@ -56,10 +57,13 @@ def _coaxial_groups(coils: Sequence[SolenoidCoil]) -> list[list[int]]:
     return groups
 
 
-def _csm_potential_matrix(coils, origin, axis, n_sub, alpha):
+def _csm_potential_matrix(
+    coils: Sequence[SolenoidCoil], origin: FloatArray, axis: FloatArray, n_sub: int, alpha: float
+) -> FloatArray:
     """Axisymmetric CSM: potential at collocation rings due to unit charge rings."""
     theta = 2 * np.pi * (np.arange(n_sub) + 0.5) / n_sub
-    rc, zc, rp, zp = [], [], [], []
+    parts: list[list[FloatArray]] = [[], [], [], []]
+    rc, zc, rp, zp = parts
     for c in coils:
         z0 = np.dot(c.position - origin, axis) * np.sign(np.dot(c.axis, axis))
         zt = z0 + np.sign(np.dot(c.axis, axis)) * c.turn_z()
@@ -68,11 +72,11 @@ def _csm_potential_matrix(coils, origin, axis, n_sub, alpha):
         zc.append(zt[:, None] + alpha * a * np.sin(theta)[None, :])
         rp.append(c.mean_radius + a * np.cos(theta)[None, :] + 0 * zt[:, None])
         zp.append(zt[:, None] + a * np.sin(theta)[None, :])
-    rc, zc, rp, zp = (np.concatenate([x.ravel() for x in arr]) for arr in (rc, zc, rp, zp))
-    return ring_potential(rc[None, :], rp[:, None], zp[:, None] - zc[None, :])
+    rc_a, zc_a, rp_a, zp_a = (np.concatenate([x.ravel() for x in arr]) for arr in parts)
+    return ring_potential(rc_a[None, :], rp_a[:, None], zp_a[:, None] - zc_a[None, :])
 
 
-def _thin_ring_potential_coeffs(a: SolenoidCoil, b: SolenoidCoil, n_phi: int) -> np.ndarray:
+def _thin_ring_potential_coeffs(a: SolenoidCoil, b: SolenoidCoil, n_phi: int) -> FloatArray:
     """Average potential on each turn of ``a`` per coulomb on each turn of ``b`` (NA, NB)."""
     phi = 2 * np.pi * np.arange(n_phi) / n_phi
     ring = np.column_stack([np.cos(phi), np.sin(phi), np.zeros(n_phi)]) * a.mean_radius
@@ -91,7 +95,7 @@ def capacitance_matrix(
     n_sub: int = 16,
     alpha: float = 0.6,
     n_phi: int = 256,
-) -> np.ndarray:
+) -> FloatArray:
     """Maxwell capacitance matrix [F] between all turns of ``coils`` (in order).
 
     ``Q = C V`` with turn potentials referenced to infinity. Diagonal entries are positive,
@@ -107,7 +111,9 @@ def capacitance_matrix(
     groups = _coaxial_groups(coils)
     sub = lambda i: slice(offs[i] * n_sub, offs[i + 1] * n_sub)
     for g in groups:
-        origin, axis = _axial_frame([coils[i] for i in g])
+        frame = _axial_frame([coils[i] for i in g])
+        assert frame is not None  # groups are coaxial by construction
+        origin, axis = frame
         pg = _csm_potential_matrix([coils[i] for i in g], origin, axis, n_sub, alpha)
         go = np.concatenate([[0], np.cumsum([counts[i] * n_sub for i in g])])
         for ii, i in enumerate(g):
@@ -131,6 +137,6 @@ def capacitance_matrix(
     return 0.5 * (c + c.T)
 
 
-def isolated_capacitance(coil: SolenoidCoil, **kw) -> float:
+def isolated_capacitance(coil: SolenoidCoil, n_sub: int = 16, alpha: float = 0.6) -> float:
     """Capacitance of the whole winding to infinity with all turns shorted together [F]."""
-    return float(capacitance_matrix([coil], **kw).sum())
+    return float(capacitance_matrix([coil], n_sub=n_sub, alpha=alpha).sum())
