@@ -61,3 +61,27 @@ def test_params_validate_strings_and_reject_typos():
     with pytest.raises(ValueError, match="not a valid"):
         Params(coupling="magnetc")
     assert CoilParams(ground="floating").ground.terminal is None
+
+
+def test_bz_profiles_match_static_at_low_frequency():
+    from coilcal import B_axis_rings
+
+    p = Params(
+        a=CoilParams(turns=10),
+        vna_setup=VnaSetup.A_SERIES,
+        f_min_mhz=0.001,
+        f_max_mhz=1.0,
+        n_freq=20,
+        f_view_mhz=0.001,
+        x_line_z_mm=1.0,  # 10 turns at 2 mm pitch: a wire centre sits at z = +1 mm
+    )
+    r = compute(p)
+    i_coil = r.drive_turn_i[r.i_view].mean()
+    expected = B_axis_rings(r.vna_coils[0], r.line_z, current=1.0) * i_coil
+    assert np.allclose(r.bz_z, expected, rtol=1e-6, atol=1e-15)
+    assert np.allclose(r.bz_z, r.bz_z_uniform, rtol=1e-6)
+    # x-cut through the winding plane: wire interiors are masked, centre value matches the axis
+    assert np.isnan(r.bz_x).any()
+    centre = np.argmin(np.abs(r.line_x))
+    on_axis = np.interp(1e-3, r.line_z, r.bz_z.real)
+    assert r.bz_x[centre].real == pytest.approx(on_axis, rel=1e-3)

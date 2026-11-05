@@ -9,7 +9,7 @@ from matplotlib.colors import LogNorm, Normalize
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 
-from ..types import FloatArray
+from ..types import ComplexArray, FloatArray
 from .model import Fill, Results, SetupKind
 
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
@@ -317,4 +317,58 @@ def draw_distribution(fig: Figure, r: Results) -> None:
     ax2.set_xlabel("turn / node index (0 = start terminal)")
     for ax in (ax1, ax2):
         _style(ax)
+    fig.align_ylabels()
+
+
+# ---------------------------------------------------------------------------------------
+def draw_bz_profiles(fig: Figure, r: Results) -> None:
+    """Bz along A's axis (vs z) and across the coils (vs x at the chosen z).
+
+    Bz is a phasor; the plots show its in-phase component, referenced to the phase of Bz at
+    the on-axis maximum, so sign reversals (return flux) stay visible. Dotted: the same coils
+    carrying a uniform current equal to their mean turn current (quasi-DC shape).
+    """
+    fig.clear()
+    ax_z, ax_x = fig.subplots(2, 1)
+    ref = r.bz_z[np.nanargmax(np.abs(r.bz_z))]
+    rot = np.exp(-1j * np.angle(ref)) if abs(ref) > 0 else 1.0
+    quad = np.nanmax(np.abs((r.bz_z * rot).imag)) / max(np.nanmax(np.abs(r.bz_z)), 1e-300)
+
+    def inphase(b: ComplexArray) -> FloatArray:
+        return (b * rot).real * 1e6  # µT
+
+    ax_z.plot(r.line_z * 1e3, inphase(r.bz_z), color=BLUE, label="network currents")
+    ax_z.plot(r.line_z * 1e3, inphase(r.bz_z_uniform), color=MUTED, ls=":", lw=1.5,
+              label="uniform current (mean turn current)")  # fmt: skip
+    ax_x.plot(r.line_x * 1e3, inphase(r.bz_x), color=BLUE, label="network currents")
+    ax_x.plot(r.line_x * 1e3, inphase(r.bz_x_uniform), color=MUTED, ls=":", lw=1.5,
+              label="uniform current")  # fmt: skip
+    z_cut = r.params.x_line_z_mm
+    for k, c in enumerate(r.vna_coils):
+        col = COIL_COLORS["AB".index(_coil_name(r, k))]
+        zc = c.position[2] * 1e3
+        half = c.length / 2 * 1e3
+        ax_z.axvspan(zc - half, zc + half, color=col, alpha=0.12, lw=0)
+        ax_z.text(
+            zc, 0.97, f"coil {_coil_name(r, k)}", transform=ax_z.get_xaxis_transform(),
+            ha="center", va="top", color=col, fontsize=8,
+        )  # fmt: skip
+        for side in (-1, 1):
+            ax_x.axvline((side * c.mean_radius + c.position[0]) * 1e3, color=col, lw=1,
+                         alpha=0.6)  # fmt: skip
+    ax_z.axvline(z_cut, color=MUTED, lw=1, ls="--")
+    for ax in (ax_z, ax_x):
+        ax.axhline(0, color=MUTED, lw=0.8)
+        ax.set_ylabel("B_z in-phase [µT peak]")
+        ax.legend(frameon=False, fontsize=8)
+        _style(ax)
+    ax_z.set_xlabel("z along coil A axis [mm]  (dashed: height of the Bz(x) cut)")
+    ax_x.set_xlabel(f"x [mm] at z = {z_cut:g} mm  (vertical lines: winding radii)")
+    ax_z.set_title(
+        f"B_z on the axis — {r.params.vna_setup}, {r.params.p_dbm:g} dBm, "
+        f"{r.f_view / 1e6:.4g} MHz  (quadrature part ≤ {quad:.1%} of peak)",
+        loc="left",
+        fontsize=10,
+    )
+    ax_x.set_title("B_z across the coils", loc="left", fontsize=10)
     fig.align_ylabels()

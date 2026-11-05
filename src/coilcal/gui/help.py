@@ -31,6 +31,8 @@ TIPS = {
     "(mutual inductance), or only the electric one (inter-coil capacitance).",
     "fill": "What colours the wire circles in the cross-section: turn current magnitude, turn "
     "potential magnitude, or nothing. Values are for the selected VNA drive.",
+    "x_line_z": "Height z (along coil A's axis) of the horizontal cut used for the Bz(x) "
+    "profile in the 'Bz profiles' tab. 0 = centre of coil A.",
     # vna
     "vna_setup": "VNA configuration used by the VNA tab, side-view field, cross-section fill and "
     "turn-current plot:\n• A on P1, B on P2: each coil is a one-port (terminal setting decides "
@@ -49,6 +51,9 @@ TAB_TIPS = {
     "Side view": "Both coils in the x–z plane with the magnetic field at the view frequency "
     "for the selected VNA setup and source power. Colour = |B| peak amplitude; lines = field "
     "direction at the phase of maximum field.",
+    "Bz profiles": "Axial field component Bz along coil A's axis (vs z) and across the coils "
+    "(vs x at the chosen height). Shows the in-phase part for the selected VNA drive; dotted "
+    "= the same coils with uniform current, i.e. the quasi-DC field shape.",
     "Impedance": "Input impedance of each coil (other coil open) versus frequency, with the "
     "quasi-DC approximation R(f) + jωL dotted. The lower panel is the apparent inductance "
     "relative to L_DC.",

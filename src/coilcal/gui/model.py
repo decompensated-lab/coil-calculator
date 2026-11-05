@@ -103,6 +103,7 @@ class Params:
     vna_setup: VnaSetup = VnaSetup.PAIR
     z0: float = 50.0
     p_dbm: float = 0.0
+    x_line_z_mm: float = 0.0  # height of the Bz(x) profile (0 = centre of coil A)
 
     def __post_init__(self) -> None:
         # accept plain strings (e.g. from tests or saved settings) but fail loudly on typos
@@ -174,6 +175,13 @@ class Results:
     field_x: FloatArray
     field_z: FloatArray
     field_b: ComplexArray  # (nz, nx, 3) complex [T]
+    # Bz profiles at f_view: on A's axis vs z, and across vs x at z = x_line_z
+    line_z: FloatArray
+    bz_z: ComplexArray
+    bz_z_uniform: ComplexArray  # same coils, uniform (mean) turn current per coil
+    line_x: FloatArray
+    bz_x: ComplexArray  # NaN inside the wires
+    bz_x_uniform: ComplexArray
     m_static: float = float("nan")
     k_static: float = float("nan")
     electric_fraction: float = float("nan")
@@ -237,6 +245,31 @@ def compute(p: Params) -> Results:
     pts = np.stack([xx, np.zeros_like(xx), zz], -1)
     field_b = np.tensordot(drive_turn_i[i_view], vna_net.unit_fields(pts), axes=1)
 
+    # ---- Bz line profiles -------------------------------------------------------------
+    i_turns = drive_turn_i[i_view]
+    i_uniform = np.empty_like(i_turns)
+    for k in range(len(vna_coils)):
+        sl = vna_net.turn_slice(k)
+        i_uniform[sl] = i_turns[sl].mean()
+    line_z = np.linspace(fz[0], fz[-1], 601)
+    line_x = np.linspace(fx[0], fx[-1], 801)
+    z_cut = p.x_line_z_mm * 1e-3
+    pts_z = np.column_stack([np.zeros_like(line_z), np.zeros_like(line_z), line_z])
+    pts_x = np.column_stack([line_x, np.zeros_like(line_x), np.full_like(line_x, z_cut)])
+    gz_z = vna_net.unit_fields(pts_z)[..., 2]  # (T, n)
+    gz_x = vna_net.unit_fields(pts_x)[..., 2]
+    inside = np.zeros(len(line_x), dtype=bool)
+    for c in vna_coils:
+        for side in (-1.0, 1.0):
+            xc = side * c.mean_radius + c.position[0]
+            zc = c.turn_z() + c.position[2]
+            d = np.hypot(line_x[:, None] - xc, z_cut - zc[None, :])
+            inside |= (d < c.wire_radius).any(axis=1)
+    bz_x = (i_turns @ gz_x).astype(np.complex128)
+    bz_x_uniform = (i_uniform @ gz_x).astype(np.complex128)
+    bz_x[inside] = np.nan
+    bz_x_uniform[inside] = np.nan
+
     l_f, r_f = [], []
     for c in coils:
         l_f.append(np.array([self_inductance(c, f) for f in freqs]))
@@ -269,6 +302,12 @@ def compute(p: Params) -> Results:
         field_x=fx,
         field_z=fz,
         field_b=field_b,
+        line_z=line_z,
+        bz_z=(i_turns @ gz_z).astype(np.complex128),
+        bz_z_uniform=(i_uniform @ gz_z).astype(np.complex128),
+        line_x=line_x,
+        bz_x=bz_x,
+        bz_x_uniform=bz_x_uniform,
     )
     if len(coils) == 2:
         out.m_static = mutual_inductance(coils[0], coils[1])

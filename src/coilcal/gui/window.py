@@ -210,6 +210,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.z_load = _dspin(p.z_load, 1e-3, 1e9, 10, decimals=3, suffix=" Ω")
         self.r_factor = _dspin(p.r_factor, 0.1, 20, 0.1, decimals=2)
         self.coupling: EnumCombo[Coupling] = EnumCombo(Coupling, p.coupling)
+        self.x_line_z = _dspin(p.x_line_z_mm, -2000, 2000, 1, decimals=2, suffix=" mm")
         _add_rows(
             QtWidgets.QFormLayout(box_f),
             [
@@ -220,6 +221,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 ("B load", "z_load", self.z_load),
                 ("R factor", "r_factor", self.r_factor),
                 ("inter-coil coupling", "coupling", self.coupling),
+                ("Bz(x) at z", "x_line_z", self.x_line_z),
             ],
         )
 
@@ -241,6 +243,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tab_defs: list[tuple[str, DrawFn]] = [
             ("Cross-section", lambda fig, r: plots.draw_cross_section(fig, r, self.fill.value())),
             ("Side view", plots.draw_side_view),
+            ("Bz profiles", plots.draw_bz_profiles),
             ("Impedance", plots.draw_impedance),
             ("Transfer A→B", plots.draw_transfer),
             ("VNA", plots.draw_vna),
@@ -281,7 +284,7 @@ class MainWindow(QtWidgets.QMainWindow):
         inputs: list[Field] = [
             self.gap_ref, self.gap, self.offset, self.f_min, self.f_max, self.n_freq,
             self.f_view, self.z_load, self.r_factor, self.coupling, self.vna_setup, self.z0,
-            self.p_dbm,
+            self.p_dbm, self.x_line_z,
         ]  # fmt: skip
         for inp in inputs:
             _changed_signal(inp).connect(self._timer.start)
@@ -327,6 +330,7 @@ class MainWindow(QtWidgets.QMainWindow):
             vna_setup=self.vna_setup.value(),
             z0=self.z0.value(),
             p_dbm=self.p_dbm.value(),
+            x_line_z_mm=self.x_line_z.value(),
         )
 
     def recompute(self, blocking: bool = False) -> None:
