@@ -7,6 +7,7 @@ Quasi-static modelling of single-layer cylindrical coils, parametrised like Coil
 uv sync
 uv run pytest -q
 uv run python examples/demo.py --turns-a 10 --turns-b 5 --freq 5e6 --gap 0.05
+uv run coilcal-gui        # Qt GUI: cross-section, impedance, transfer, turn currents
 ```
 
 ```python
@@ -45,6 +46,31 @@ print(cc.check_quasistatic(a, f_max=5e6))  # SRF / electrical-length report
 
 Sign convention: positive current circulates CCW about the coil's local +z axis; M > 0 when
 positive currents give aiding flux. Flipping a coil (180°) flips the sign of M.
+
+## Turn-level network (non-DC effects)
+
+`CoilNetwork([a, b], ground=["end", "end"])` builds a lumped network with one branch per
+turn. Each branch is `R + jωL` and is coupled to every other turn through the inductance
+matrix above. The Maxwell capacitance matrix between turns comes from a charge-simulation
+electrostatic solver (axisymmetric within coaxial coils, thin-wire between other coils) and is
+mapped onto the winding nodes. `solve(freqs)` returns:
+
+* the port Z-matrix: `Z11` (input impedance, `effective_inductance`) and `Z21` (open-circuit
+  V_B per ampere in A, including capacitive feed-through); use `loaded_voltage(z_load)` for a
+  terminated coil B;
+* per-turn currents and node voltages, plus the complex B-field from them (`net.field_B`);
+* `net.srf()`: the first parallel resonance at a port.
+
+`coupling="magnetic"` or `"electric"` keeps only one inter-coil path, to split the two
+contributions.
+
+Checks: the low-frequency limit reproduces the static L, M and R to 1e-6. The capacitance
+solver matches an isolated torus and the two-wire line formula to about 1e-4. The network is
+reciprocal.
+
+Not modelled: the former's dielectric (raises C, lowers SRF), proximity effect (approximate it
+with `r_factor`), radiation and ground planes/fixtures. Each turn is assumed much shorter than
+a wavelength (true here: 0.47 m against 60 m).
 
 ## Caveats at 5 MHz with a 150 mm former
 
