@@ -125,3 +125,25 @@ def test_enum_arguments_validated():
     z1 = CoilNetwork([a], ground="end", coupling="full").solve([1e6]).z
     z2 = CoilNetwork([a], ground=Grounding.END, coupling=Coupling.FULL).solve([1e6]).z
     assert np.array_equal(z1, z2)
+
+
+def test_resonance_q_matches_3db_bandwidth():
+    from coilcal import Dielectric, Former
+
+    c = cc.SolenoidCoil(
+        0.51e-3, 1.1e-3, 0.16, 22, insulation_d=1.1e-3, insulation=Dielectric(3.5, 0.05),
+        former=Former(3e-3, Dielectric(3.0, 0.012), 10e-3),
+    )  # fmt: skip
+    net = CoilNetwork([c], ground="end")
+    f0, q, rp = net.resonance()
+    zf = np.abs(net.solve(np.linspace(f0 * (1 - 3 / q), f0 * (1 + 3 / q), 4001)).z[:, 0, 0])
+    fs = np.linspace(f0 * (1 - 3 / q), f0 * (1 + 3 / q), 4001)
+    band = fs[zf >= zf.max() / np.sqrt(2)]
+    assert f0 / (band[-1] - band[0]) == pytest.approx(q, rel=0.02, abs=0)
+    assert zf.max() == pytest.approx(rp, rel=0.01, abs=0)
+    # the dielectric loss dominates: lossless dielectrics give a much higher Q
+    lossless = cc.SolenoidCoil(
+        0.51e-3, 1.1e-3, 0.16, 22, insulation_d=1.1e-3, insulation=Dielectric(3.5),
+        former=Former(3e-3, Dielectric(3.0), 10e-3),
+    )  # fmt: skip
+    assert CoilNetwork([lossless], ground="end").resonance().q > 5 * q

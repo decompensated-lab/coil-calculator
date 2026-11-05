@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import magpylib as magpy
 import numpy as np
@@ -43,6 +44,14 @@ from .types import (
 
 REF = -1  # node index used for the reference (infinity / grounded shield)
 GroundSpec = Grounding | str | None
+
+
+class Resonance(NamedTuple):
+    """A parallel self-resonance seen at a port."""
+
+    freq: float  # [Hz]
+    q: float  # resonator Q (conductor + dielectric loss)
+    r_parallel: float  # |Z| at resonance [Ω]
 
 
 @dataclass
@@ -286,6 +295,22 @@ class CoilNetwork:
             return float((1 / self.solve([f]).z[0, port, port]).imag)
 
         return float(brentq(g, fs[k], fs[k + 1], xtol=1e-6 * fs[k]))
+
+    def resonance(self, port: int = 0, f_lo: float = 1e4, f_hi: float = 1e9) -> Resonance:
+        """First parallel resonance at ``port`` (other ports open), with its Q.
+
+        Q is the resonator (unloaded) Q from the slope of the port susceptance,
+        ``Q = (ω0 / 2G)·dB/dω`` at ``Y = G + jB = 1/Z_ii``; it includes conductor and
+        dielectric loss. ``r_parallel = 1/G`` is the impedance at resonance.
+        """
+        f0 = self.srf(port, f_lo, f_hi)
+        if not np.isfinite(f0):
+            return Resonance(float("nan"), float("nan"), float("nan"))
+        e = 1e-5
+        y = 1 / self.solve([f0 * (1 - e), f0, f0 * (1 + e)]).z[:, port, port]
+        w0 = 2 * np.pi * f0
+        db_dw = (y[2].imag - y[0].imag) / (2 * e * w0)
+        return Resonance(f0, float(w0 * db_dw / (2 * y[1].real)), float(1 / y[1].real))
 
     def unit_fields(self, points: ArrayLike) -> FloatArray:
         """B [T] at ``points`` per ampere in each turn, shape (T, *points.shape)."""

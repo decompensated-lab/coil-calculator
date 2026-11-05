@@ -154,3 +154,21 @@ def test_coil_box_keeps_insulation_thickness():
     assert box.params().insulation_material is Material.PTFE
     app.processEvents()
     w.close()
+
+
+def test_summary_never_shows_negative_q_or_inductance_near_resonance():
+    from coilcal.materials import Dielectric
+
+    a = CoilParams(
+        wire_d_mm=0.51, insulation_d_mm=1.1, pitch_mm=1.1, former_d_mm=160, turns=22,
+        insulation_material=Material.PVC, insulation=Dielectric(3.5, 0.05),
+        former_material=Material.PVC_RIGID, former=Dielectric(3.0, 0.012),
+    )  # fmt: skip
+    r = compute(Params(a=a, f_view_mhz=5.0))
+    assert r.srf_here[0] < r.srf_net[0]  # coil B (open) pulls A's resonance down
+    assert r.f_view > r.srf_here[0]  # the view frequency is just above it
+    html = summary_html(r)
+    assert "capacitive: near/above a resonance" in html and "not a Q here" in html
+    assert html.count("not a Q here") == 2  # B sees A's resonance through the coupling
+    assert 50 < r.q_srf[0] < 300
+    assert any("first resonance" in w for w in r.warnings)

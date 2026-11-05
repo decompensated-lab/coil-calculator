@@ -76,20 +76,54 @@ def summary_html(r: Results, dark: bool = False) -> str:
     for k, c in enumerate(r.coils):
         z = r.res.z[r.i_view, k, k]
         l_eff = z.imag / w
+        r_ac = r.r_f[k][r.i_view]
+        other = "AB"[1 - k] if len(r.coils) == 2 else None
+        # any resonance of the system shows up in every port's Z (through the coupling)
+        f_res = np.nanmin([*r.srf_net, *r.srf_here])
+        below = not np.isfinite(f_res) or f < 0.5 * f_res
+        z_note = f"∠ {np.degrees(np.angle(z)):.1f}°" + (f", coil {other} open" if other else "")
         rows = [
             row(r"L_\mathrm{DC}", si(r.l_dc[k], "H"), "static, ring model"),
+            row(r"|Z_{in}|", si(abs(z), "Ω"), z_note),
             row(
                 r"L_\mathrm{eff}=\mathrm{Im}\,Z_{in}/\omega",
-                si(l_eff, "H"),
-                f"{l_eff / r.l_dc[k] - 1:+.1%} vs DC",
+                si(l_eff, "H") if l_eff > 0 else "—",
+                f"{l_eff / r.l_dc[k] - 1:+.1%} vs DC"
+                if l_eff > 0
+                else "capacitive: near/above a resonance",
             ),
-            row(r"|Z_{in}|", si(abs(z), "Ω"), f"∠ {np.degrees(np.angle(z)):.1f}°"),
-            row(r"R_\mathrm{ac}", si(r.r_f[k][r.i_view], "Ω"), "skin effect × R factor"),
-            row(r"Q=\omega L/R", f"{l_eff * w / max(z.real, 1e-30):.4g}", "from network Z"),
+            row(r"R_\mathrm{ac}", si(r_ac, "Ω"), "copper: skin effect × R factor"),
+            row(
+                r"Q_L=\omega L_\mathrm{DC}/R_\mathrm{ac}",
+                f"{w * r.l_dc[k] / r_ac:.4g}",
+                "copper only, far below resonance",
+            ),
+            row(
+                r"X/R\ \mathrm{of}\ Z_{in}",
+                f"{z.imag / z.real:.4g}" if below else "—",
+                "incl. dielectric loss and resonance"
+                if below
+                else "not a Q here: too close to resonance",
+            ),
             row(
                 r"f_\mathrm{SRF}",
                 si(r.srf_net[k], "Hz"),
-                f"network, {r.params.grounds[k].label}",
+                f"coil alone, {r.params.grounds[k].label}",
+            ),
+        ]
+        if other and np.isfinite(r.srf_here[k]) and abs(r.srf_here[k] / r.srf_net[k] - 1) > 1e-3:
+            rows.append(
+                row(
+                    r"f_\mathrm{res}",
+                    si(r.srf_here[k], "Hz"),
+                    f"with coil {other} present (open)",
+                )
+            )
+        rows += [
+            row(
+                r"Q_\mathrm{SRF}",
+                f"{r.q_srf[k]:.4g}",
+                f"at resonance, copper + dielectric loss; R_p = {si(r.rp_srf[k], 'Ω', 3)}",
             ),
             row(
                 r"f_\mathrm{SRF}^\mathrm{no\ dielectric}",

@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from ..circuit import CoilNetwork, NetworkResult
+from ..circuit import CoilNetwork, NetworkResult, Resonance
 from ..geometry import Former, SolenoidCoil
 from ..inductance import ac_resistance, self_inductance
 from ..materials import Dielectric, Material
@@ -216,7 +216,10 @@ class Results:
     l_dc: list[float]
     l_f: list[FloatArray]  # quasi-DC L(f) (internal inductance follows skin effect)
     r_f: list[FloatArray]  # skin-effect R(f) x r_factor
-    srf_net: list[float]
+    srf_net: list[float]  # each coil alone (its own grounding)
+    q_srf: list[float]  # resonator Q at srf_net (conductor + dielectric loss)
+    rp_srf: list[float]  # |Z| at srf_net
+    srf_here: list[float]  # first resonance at each coil's port in the full network (others open)
     srf_medhurst: list[float]
     c_medhurst: list[float]
     srf_vacuum: list[float]  # same coil without insulation/former dielectrics (nan if none)
@@ -329,6 +332,16 @@ def compute(p: Params) -> Results:
     bz_x[inside] = np.nan
     bz_x_uniform[inside] = np.nan
 
+    alone: list[Resonance] = [
+        CoilNetwork([c], ground=g, r_factor=p.r_factor).resonance(f_lo=1e4, f_hi=hi)
+        for c, g in zip(coils, grounds, strict=True)
+    ]
+    srf_here = (
+        [net.srf(k, f_lo=1e4, f_hi=hi) for k in range(len(coils))]
+        if len(coils) > 1
+        else [alone[0].freq]
+    )
+
     l_f, r_f = [], []
     for c in coils:
         l_f.append(np.array([self_inductance(c, f) for f in freqs]))
@@ -343,10 +356,10 @@ def compute(p: Params) -> Results:
         l_dc=[self_inductance(c) for c in coils],
         l_f=l_f,
         r_f=r_f,
-        srf_net=[
-            CoilNetwork([c], ground=g, r_factor=p.r_factor).srf(f_lo=1e4, f_hi=hi)
-            for c, g in zip(coils, grounds, strict=True)
-        ],
+        srf_net=[x.freq for x in alone],
+        q_srf=[x.q for x in alone],
+        rp_srf=[x.r_parallel for x in alone],
+        srf_here=srf_here,
         srf_medhurst=[srf_lumped(c) for c in coils],
         srf_vacuum=[
             CoilNetwork([c.without_dielectrics()], ground=g, r_factor=p.r_factor).srf(
@@ -391,10 +404,17 @@ def compute(p: Params) -> Results:
         ratio = c.length / c.mean_d
         if not 0.1 <= ratio <= 50:
             out.warnings.append(f"coil {name}: l/D = {ratio:.2g}, outside Medhurst's fitted range")
-        if np.isfinite(out.srf_net[k]) and f_view > 0.3 * out.srf_net[k]:
+        f_res = np.nanmin([out.srf_net[k], out.srf_here[k]])
+        if np.isfinite(f_res) and f_view > 0.3 * f_res:
+            where = "above" if f_view > f_res else "near"
             out.warnings.append(
-                f"coil {name}: view frequency is {f_view / out.srf_net[k]:.2f} × its SRF; "
-                "the quasi-static picture no longer holds"
+                f"coil {name}: view frequency is {f_view / f_res:.3f} × its first resonance "
+                f"({where} it): L_eff and X/R are dominated by the resonance, not the inductance"
+            )
+        if c.pitch < 2.5 * c.wire_d and p.r_factor == 1.0:
+            out.warnings.append(
+                f"coil {name}: pitch is {c.pitch / c.wire_d:.2g} × wire Ø; the proximity effect "
+                "(not modelled) raises R, by tens of % up to 2–3× for touching turns: set R factor"
             )
         lam = 299_792_458 / f_view
         if c.wire_length / lam > 0.1:

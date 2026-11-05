@@ -221,9 +221,9 @@ def draw_impedance(fig: Figure, r: Results) -> None:
         ax1.loglog(f / 1e6, np.abs(zq), color=col, ls=":", lw=1.5, label=f"coil {'AB'[k]} quasi-DC")
         ax2.semilogx(f / 1e6, z.imag / w / r.l_dc[k], color=col)
         ax2.semilogx(f / 1e6, r.l_f[k] / r.l_dc[k], color=col, ls=":", lw=1.5)
-        if np.isfinite(r.srf_net[k]) and r.srf_net[k] <= f[-1]:
+        if np.isfinite(r.srf_here[k]) and r.srf_here[k] <= f[-1]:
             for ax in (ax1, ax2):
-                ax.axvline(r.srf_net[k] / 1e6, color=col, ls="--", lw=0.8)
+                ax.axvline(r.srf_here[k] / 1e6, color=col, ls="--", lw=0.8)
     _vline_view(r, ax1, ax2)
     for ax in (ax1, ax2):
         _style(ax)
