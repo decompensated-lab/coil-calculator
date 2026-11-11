@@ -20,6 +20,8 @@ QT_QPA_PLATFORM=offscreen uv run python script.py     # render GUI widgets headl
 
 uv run pytest -q tests/port --port-backend native     # port tests against the native build
 cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+OPENBLAS_NUM_THREADS=1 uv run python tests/port/bench.py --pyodide   # port vs reference timings
+                                          # (--pyodide needs `pnpm install` in tests/port/pyodide)
 ```
 
 Before calling a change done, run ruff (check and format), mypy, and pytest. All must pass.
