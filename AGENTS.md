@@ -17,9 +17,13 @@ uv run mypy                               # type check src/coilcal (disallow_unt
 uv run python examples/demo.py            # CLI demo, writes examples/out/ (git-ignored)
 uv run coilcal-gui                        # the GUI (needs a display)
 QT_QPA_PLATFORM=offscreen uv run python script.py     # render GUI widgets headless
+
+uv run pytest -q tests/port --port-backend native     # port tests against the native build
+cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
 Before calling a change done, run ruff (check and format), mypy, and pytest. All must pass.
+If `rust/` changed, also run the cargo line above.
 For GUI changes, also render the affected tab offscreen (`widget.grab().save(...)`) and look
 at the image.
 
@@ -38,6 +42,10 @@ at the image.
   * `help.py`: every tooltip and the F1 guide.
   * `widgets.py`, `window.py`, `pairtab.py`: Qt.
 * `tests/`: pytest. `_bem2d.py` is an independent 2-D BEM used only as a reference.
+* `rust/`: the WASM rewrite's numerics core (work in progress, see `PLAN.md` if present).
+  `crates/core` holds the kernels, `crates/check` a stdin/stdout binary that `tests/port/`
+  drives to compare every kernel with the Python reference (the WASM build runs under Node's
+  `node:wasi`; the tests skip without cargo or Node). Python stays the reference.
 
 ## Conventions
 
@@ -89,6 +97,8 @@ at the image.
   in `pyproject.toml`) and 3 days for anything web-related (pnpm/npm). If a critical update
   must break the cooldown, run a vulnerability scan first (e.g. `uvx pip-audit`) and note it
   in the commit.
+* **Rust crates:** same 7-day rule; check the publish date of a crate version (and of new
+  transitive dependencies) before adding it, pin it, and commit `rust/Cargo.lock`.
 * **Toolchains:** `uv` for Python and `pnpm` for JS. Do not use pip, poetry or npm directly.
 * **Containers:** prefer podman, but keep Dockerfiles Docker-compatible. Follow uv's
   caching / non-editable install guidance:
