@@ -503,6 +503,15 @@ fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
             )])
         }
         "incident_voltage" => map_real(&args, |[p, z0]| vna::incident_voltage(p, z0)),
+        // app::call on raw bytes, carried one byte per f64 (the wire format has no u8 arrays)
+        "app" => {
+            let req: Vec<u8> = args[0].data.iter().map(|&b| b as u8).collect();
+            let resp = coilcal_core::app::call(&req);
+            Ok(vec![Array::real(
+                vec![resp.len()],
+                resp.into_iter().map(f64::from).collect(),
+            )])
+        }
         "geomspace" => {
             let [a, b, n] = &args[..] else {
                 return Err("expected start, stop, num".into());

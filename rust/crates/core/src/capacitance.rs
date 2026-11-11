@@ -418,7 +418,7 @@ fn dtn(a: f64, b: f64, eps: c64, k: usize) -> (f64, c64) {
 // --- main solver ---------------------------------------------------------------------
 
 /// Discretisation options; defaults as in `capacitance_matrix`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Options {
     /// Ring charges per turn (even, >= 4); `None` = [`auto_n_sub`].
     pub n_sub: Option<usize>,
@@ -656,6 +656,7 @@ fn assemble_wire_rows(
 
 /// Maxwell capacitance matrix [F], row-major `n_turns x n_turns`; complex only if a
 /// dielectric is lossy (as in the reference).
+#[derive(Clone)]
 pub enum Matrix {
     Real(Vec<f64>),
     Complex(Vec<c64>),
@@ -692,4 +693,32 @@ pub fn capacitance_matrix(coils: &[Coil], opt: &Options) -> Result<Matrix, Strin
     } else {
         Matrix::Real(sym.iter().map(|z| z.re).collect())
     })
+}
+
+/// Results kept by [`capacitance_matrix_cached`] (the reference keeps 32 as well).
+const CACHE_SIZE: usize = 32;
+type CacheEntry = (Vec<Coil>, Options, Matrix);
+static CACHE: std::sync::Mutex<Vec<CacheEntry>> = std::sync::Mutex::new(Vec::new());
+
+/// [`capacitance_matrix`] memoised per geometry, like the reference's `capacitance_matrix`: one
+/// app update builds up to six networks over the same coils, and changing only the frequency,
+/// drive or VNA setup reuses every matrix.
+pub fn capacitance_matrix_cached(coils: &[Coil], opt: &Options) -> Result<Matrix, String> {
+    let lookup = |cache: &mut Vec<CacheEntry>| {
+        let i = cache.iter().position(|(c, o, _)| c == coils && o == opt)?;
+        let hit = cache.remove(i);
+        let m = hit.2.clone();
+        cache.push(hit); // most recently used last
+        Some(m)
+    };
+    if let Some(m) = lookup(&mut CACHE.lock().unwrap()) {
+        return Ok(m);
+    }
+    let m = capacitance_matrix(coils, opt)?;
+    let mut cache = CACHE.lock().unwrap();
+    cache.push((coils.to_vec(), *opt, m.clone()));
+    if cache.len() > CACHE_SIZE {
+        cache.remove(0);
+    }
+    Ok(m)
 }

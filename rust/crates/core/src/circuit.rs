@@ -161,7 +161,7 @@ impl Network {
             let mut c = vec![c64::new(0.0, 0.0); nt * nt];
             for (i, coil) in coils.iter().enumerate() {
                 let (o, n) = (turn_offsets[i], coil.n_turns);
-                let ci = as_c64(capacitance::capacitance_matrix(
+                let ci = as_c64(capacitance::capacitance_matrix_cached(
                     std::slice::from_ref(coil),
                     &opt,
                 )?);
@@ -172,7 +172,7 @@ impl Network {
             }
             c
         } else {
-            as_c64(capacitance::capacitance_matrix(coils, &opt)?)
+            as_c64(capacitance::capacitance_matrix_cached(coils, &opt)?)
         };
         // turn t spans nodes (from[t], from[t] + 1); c_node = Tᵀ C T with T = 0.5 at both
         let from: Vec<usize> = (0..nc)

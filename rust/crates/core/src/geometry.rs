@@ -1,6 +1,5 @@
 //! Coil description and rotations; port of the parts of `coilcal/geometry.py` that the kernels
-//! use. Validation stays in the Python constructor for now (inputs come from validated
-//! `SolenoidCoil`s); the browser layer will need it.
+//! use. The kernels assume valid coils; `app::CoilParams::build` validates the app's input.
 
 use crate::c64;
 
