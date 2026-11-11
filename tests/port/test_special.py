@@ -1,15 +1,15 @@
 """K1, K2: special functions of the port against ``scipy.special``.
 
-Measured worst cases (WASM and native agree): ellipk 5.2e-15 (near m = 0.85, where the
-crate's Boost polynomials and scipy's Cephes ones differ most), ellipe 1.1e-15, ellipkm1
-7e-16, jve 1.1e-15, J0/J1 ratio 1.2e-15.
+The elliptic integrals are a port of the same Cephes routines scipy uses, so they agree to the
+last bit except where the two ``log`` implementations differ: measured ellipk 0, ellipkm1 0,
+ellipe 1.4e-16. jve (Amos port vs Amos) 1.1e-15, J0/J1 ratio 1.2e-15.
 """
 
 import numpy as np
 import pytest
 from scipy import special as sp
 
-RTOL_ELLIP = 1e-14  # two independent algorithms, each good to a few ε
+RTOL_ELLIP = 1e-14  # plan target; kept although the agreement is now ~1e-16
 RTOL_BESSEL = 1e-13
 
 rng = np.random.default_rng(20261111)

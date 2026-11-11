@@ -6,5 +6,4 @@ publish.workspace = true
 
 [dependencies]
 complex-bessel = "=0.3.0"
-ellip = "=1.2.3"
 num-complex = { version = "=0.4.6", default-features = false }

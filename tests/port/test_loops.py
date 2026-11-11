@@ -5,10 +5,11 @@ bound is derived from the conditioning and was checked against an exact (50-digi
 value, which showed the *reference itself* is off by the same amount:
 
 * Just above ``_M_SERIES`` the bracket ``(1 - m/2) K - E = pi m^2/32 + ...`` cancels terms of
-  size ``pi/2``, amplifying the few-ε differences between the crate's and scipy's K, E by
-  ``16/m^2`` (1.6e7 at m = 1e-3, i.e. ~7 digits, not the 3 the plan assumed). Measured
-  port-vs-reference up to 8.9e-9 at m = 1.02e-3; reference-vs-exact up to 2.8e-9 there. The
-  bound is ``1e-13 + 64 ε/m^2``.
+  size ``pi/2``, amplifying any difference in K, E by ``16/m^2`` (1.6e7 at m = 1e-3, i.e.
+  ~7 digits, not the 3 the plan assumed); reference-vs-exact is up to 2.8e-9 there. With the
+  ``ellip`` crate the port differed by up to 8.9e-9; since K and E are the same Cephes code as
+  scipy's they agree exactly, but the bound ``1e-13 + 64 ε/m^2`` stays: it is what the formula
+  guarantees, and bit-equality would hang on two ``log`` implementations agreeing.
 * ``L_int = Im(Z)/ω``: at low frequency Z is nearly real, so its imaginary part carries an
   absolute error of order ε|Z|. Z itself agrees to 1e-15; L_int is compared with an absolute
   bound ``1e-13 |Z|/ω``.
