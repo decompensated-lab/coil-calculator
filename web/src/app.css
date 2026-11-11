@@ -1,0 +1,84 @@
+:root {
+  --ink: #1f1f1e;
+  --muted: #6b6a64;
+  --grid: #e4e3de;
+  --bg: #ffffff;
+  --panel: #f7f6f3;
+  --input: #ffffff;
+  --warn: #b4541a;
+  --error: #c0392b;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ink: #f0efec;
+    --muted: #a8a79f;
+    --grid: #3a3936;
+    --bg: #1c1c1b;
+    --panel: #232321;
+    --input: #2b2b29;
+    --warn: #f0a050;
+    --error: #ff7a6b;
+    color-scheme: dark;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.4 system-ui, sans-serif;
+}
+/* form rows (Num, Choice): label left, input right */
+.row {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0;
+}
+.row .name {
+  color: var(--muted);
+  cursor: help;
+}
+.row .field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.row .unit {
+  color: var(--muted);
+  min-width: 2.2em;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 8px;
+}
+.pair .row {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+input[type='number'],
+select {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+  background: var(--input);
+  border: 1px solid var(--grid);
+  border-radius: 4px;
+}
+input[type="number"]:placeholder-shown {
+  border-color: var(--error);
+}
+fieldset:disabled .row {
+  opacity: 0.5;
+}
+.u-legend {
+  color: var(--ink);
+  font-size: 12px;
+}

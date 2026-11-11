@@ -22,10 +22,15 @@ uv run pytest -q tests/port --port-backend native     # port tests against the n
 cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 OPENBLAS_NUM_THREADS=1 uv run python tests/port/bench.py --pyodide   # port vs reference timings
                                           # (--pyodide needs `pnpm install` in tests/port/pyodide)
+
+cd web && pnpm install && pnpm dev        # the browser app (builds the WASM module first)
+cd web && pnpm check && pnpm build        # type-check (svelte-check) and production build
+cd web && node scripts/screenshot.ts http://localhost:5173/ out.png   # headless look (Chromium)
 ```
 
 Before calling a change done, run ruff (check and format), mypy, and pytest. All must pass.
-If `rust/` changed, also run the cargo line above.
+If `rust/` changed, also run the cargo line above. If `web/` changed, run `pnpm check` and
+`pnpm build`, and look at a screenshot of the app (light and `DARK=1`).
 For GUI changes, also render the affected tab offscreen (`widget.grab().save(...)`) and look
 at the image.
 
@@ -48,6 +53,12 @@ at the image.
   `crates/core` holds the kernels, `crates/check` a stdin/stdout binary that `tests/port/`
   drives to compare every kernel with the Python reference (the WASM build runs under Node's
   `node:wasi`; the tests skip without cargo or Node). Python stays the reference.
+  `crates/core/src/app.rs` is the app layer (port of `gui/model.py`'s `compute` plus input
+  validation) behind a small byte interface; `crates/web` exports it to the browser.
+* `web/`: the browser app (Svelte 5 + Vite + TypeScript, uPlot, KaTeX). `src/lib/protocol.ts`
+  mirrors `gui/model.py`'s `Params` and the byte format; the model runs in a Web Worker
+  (`src/lib/worker.ts`). Plot and summary components port `gui/plots.py` and
+  `gui/richtext.py`; `src/lib/help.ts` is generated from `gui/help.py`.
 
 ## Conventions
 

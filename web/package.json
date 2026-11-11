@@ -1,0 +1,23 @@
+{
+  "name": "coilcal-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "wasm": "cd ../rust && cargo build --release --quiet --target wasm32-unknown-unknown -p coilcal-web && cp target/wasm32-unknown-unknown/release/coilcal_web.wasm ../web/src/lib/coilcal.wasm",
+    "dev": "pnpm wasm && vite",
+    "build": "pnpm wasm && vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "svelte": "5.57.3",
+    "svelte-check": "4.7.8",
+    "typescript": "6.0.3",
+    "vite": "8.3.6"
+  },
+  "dependencies": {
+    "katex": "0.19.1",
+    "uplot": "1.6.32"
+  }
+}

@@ -1,0 +1,124 @@
+// Typed view of the arrays app::call returns, plus complex and number-formatting helpers.
+import type { Arr, Params, Raw } from './protocol';
+
+export interface Complex {
+  re: number;
+  im: number;
+}
+export const abs = (z: Complex) => Math.hypot(z.re, z.im);
+export const deg = (z: Complex) => (Math.atan2(z.im, z.re) * 180) / Math.PI;
+export const mul = (a: Complex, b: Complex): Complex => ({
+  re: a.re * b.re - a.im * b.im,
+  im: a.re * b.im + a.im * b.re,
+});
+export const div = (a: Complex, b: Complex): Complex => {
+  const d = b.re * b.re + b.im * b.im;
+  return { re: (a.re * b.re + a.im * b.im) / d, im: (a.im * b.re - a.re * b.im) / d };
+};
+
+/** Element `i` (flat row-major index) of a complex array. */
+export const at = (a: Arr, i: number): Complex => ({ re: a.data[2 * i], im: a.data[2 * i + 1] });
+
+/** One coil, SI units (the coil-table columns of app.rs). */
+export interface Coil {
+  wire_d: number;
+  pitch: number;
+  former_d: number;
+  n_turns: number;
+  position: [number, number, number];
+  insulation_d: number;
+  former: { wall: number; overhang: number } | null;
+  length: number;
+  mean_radius: number;
+  wire_length: number;
+}
+
+function coils(a: Arr): Coil[] {
+  return Array.from({ length: a.shape[0] }, (_, i) => {
+    const r = a.data.subarray(19 * i, 19 * (i + 1));
+    const mean_radius = (r[2] + r[11]) / 2;
+    return {
+      wire_d: r[0],
+      pitch: r[1],
+      former_d: r[2],
+      n_turns: r[3],
+      position: [r[4], r[5], r[6]],
+      insulation_d: r[11],
+      former: r[14] ? { wall: r[15], overhang: r[18] } : null,
+      length: r[3] * r[1],
+      mean_radius,
+      wire_length: r[3] * Math.hypot(2 * Math.PI * mean_radius, r[1]),
+    };
+  });
+}
+
+export function view(raw: Raw, params: Params) {
+  const arr = (k: string) => raw[k] as Arr;
+  const real = (k: string) => arr(k).data;
+  const [iView, vPlus, vnaPair, mStatic, kStatic, electricFraction] = real('scalars');
+  const freqs = real('freqs');
+  const nf = freqs.length;
+  const perCoil = (k: string) => (c: number) => real(k).subarray(c * nf, (c + 1) * nf);
+  return {
+    params,
+    coils: coils(arr('coils')),
+    vnaCoils: coils(arr('vna_coils')),
+    freqs,
+    iView,
+    fView: freqs[iView],
+    /** (F, C, C) */
+    z: arr('z'),
+    lDc: real('l_dc'),
+    lF: perCoil('l_f'),
+    rF: perCoil('r_f'),
+    srfNet: real('srf_net'),
+    qSrf: real('q_srf'),
+    rpSrf: real('rp_srf'),
+    srfHere: real('srf_here'),
+    srfMedhurst: real('srf_medhurst'),
+    cMedhurst: real('c_medhurst'),
+    srfVacuum: real('srf_vacuum'),
+    vnaPair: vnaPair === 1,
+    /** (F, 2, 2) */
+    s: arr('s'),
+    /** (F, 2) */
+    drivePortI: arr('drive_port_i'),
+    vPlus,
+    fieldB: arr('field_b'),
+    mStatic,
+    kStatic,
+    electricFraction,
+    warnings: raw.warnings as string[],
+  };
+}
+export type Results = ReturnType<typeof view>;
+
+/** Python's `format(x, f".{digits}g")`. */
+export function g(x: number, digits = 4): string {
+  if (!Number.isFinite(x)) return '—';
+  if (x === 0) return '0';
+  const strip = (s: string) => (s.includes('.') ? s.replace(/\.?0+$/, '') : s);
+  const exp = Math.floor(Math.log10(Math.abs(Number(x.toPrecision(digits)))));
+  if (exp < -4 || exp >= digits) {
+    const [m, e] = x.toExponential(digits - 1).split('e');
+    return `${strip(m)}e${e[0]}${e.slice(1).padStart(2, '0')}`;
+  }
+  return strip(x.toFixed(Math.max(digits - 1 - exp, 0)));
+}
+
+const PREFIX: [number, string][] = [
+  [1e9, 'G'], [1e6, 'M'], [1e3, 'k'], [1, ''], [1e-3, 'm'], [1e-6, 'µ'], [1e-9, 'n'], [1e-12, 'p'],
+];
+
+/** SI prefix formatting, e.g. `si(2.3e-6, 'H') -> '2.3 µH'` (gui/richtext.py `si`). */
+export function si(x: number, unit: string, digits = 4): string {
+  if (!Number.isFinite(x)) return '—';
+  if (x === 0) return `0 ${unit}`;
+  for (const [scale, p] of PREFIX) {
+    if (Math.abs(x) >= scale * 0.9995) return `${g(x / scale, digits)} ${p}${unit}`;
+  }
+  return `${g(x, digits)} ${unit}`;
+}
+
+/** `f"{x:+.1%}"`. */
+export const pct = (x: number) => `${x >= 0 ? '+' : ''}${(100 * x).toFixed(1)}%`;
