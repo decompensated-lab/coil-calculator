@@ -19,7 +19,6 @@ pub struct Array {
     pub data: Vec<f64>,
 }
 
-#[allow(dead_code)] // constructors are used by the kernels from M1 on
 impl Array {
     pub fn real(shape: Vec<usize>, data: Vec<f64>) -> Self {
         debug_assert_eq!(shape.iter().product::<usize>(), data.len());
@@ -39,9 +38,6 @@ impl Array {
     }
     pub fn scalar(x: f64) -> Self {
         Self::real(vec![], vec![x])
-    }
-    pub fn len(&self) -> usize {
-        self.shape.iter().product()
     }
 }
 
