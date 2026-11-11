@@ -1,0 +1,114 @@
+<!-- Equal-aspect plot frame in data coordinates (y up): axes with ticks and labels, a clip
+     region for the content, and an optional colour bar. Content is drawn by the `children`
+     snippet in data coordinates (it is placed under a y flip). -->
+<script lang="ts">
+  import type { Snippet } from 'svelte';
+  import { blues, css, ticks } from './fieldplot';
+
+  interface ColorBar {
+    label: string;
+    /** Tick values and their position t in [0, 1] along the bar. */
+    ticks: { t: number; text: string }[];
+  }
+
+  let {
+    x0,
+    x1,
+    y0,
+    y1,
+    xLabel,
+    yLabel,
+    colorbar,
+    label,
+    maxHeight = '70vh',
+    children,
+  }: {
+    x0: number;
+    x1: number;
+    y0: number;
+    y1: number;
+    xLabel: string;
+    yLabel: string;
+    colorbar?: ColorBar;
+    /** Accessible description of the plot. */
+    label: string;
+    maxHeight?: string;
+    children: Snippet;
+  } = $props();
+
+  const uid = $props.id();
+  const W = $derived(x1 - x0);
+  const H = $derived(y1 - y0);
+  const f = $derived(Math.max(W, 0.6 * H) / 56); // font size in data units
+  const ml = $derived(4.2 * f);
+  const mb = $derived(3.2 * f);
+  const mt = $derived(0.8 * f);
+  const mr = $derived(colorbar ? 7.5 * f : 1.2 * f);
+  const xt = $derived(ticks(x0, x1, Math.max(3, Math.round(W / (6 * f)))));
+  const yt = $derived(ticks(y0, y1, Math.max(2, Math.round(H / (3 * f)))));
+  const fmt = (v: number) => Number(v.toPrecision(6)).toString();
+  const stops = Array.from({ length: 9 }, (_, i) => i / 8);
+</script>
+
+<svg
+  viewBox="{x0 - ml} {-y1 - mt} {W + ml + mr} {H + mt + mb}"
+  style:max-height={maxHeight}
+  role="img"
+  aria-label={label}
+  font-size={f}
+>
+  <defs>
+    <clipPath id="{uid}-clip"><rect x={x0} y={y0} width={W} height={H} /></clipPath>
+    {#if colorbar}
+      <linearGradient id="{uid}-cb" x1="0" y1="1" x2="0" y2="0">
+        {#each stops as t (t)}<stop offset={t} stop-color={css(blues(t))} />{/each}
+      </linearGradient>
+    {/if}
+  </defs>
+  <g transform="scale(1 -1)">
+    <g clip-path="url(#{uid}-clip)">{@render children()}</g>
+  </g>
+  <g class="axes" stroke-width={f / 12}>
+    <rect x={x0} y={-y1} width={W} height={H} fill="none" />
+    {#each xt as v (v)}
+      <line x1={v} x2={v} y1={-y0} y2={-y0 + 0.4 * f} />
+      <text x={v} y={-y0 + 1.5 * f} text-anchor="middle">{fmt(v)}</text>
+    {/each}
+    {#each yt as v (v)}
+      <line x1={x0} x2={x0 - 0.4 * f} y1={-v} y2={-v} />
+      <text x={x0 - 0.7 * f} y={-v + 0.35 * f} text-anchor="end">{fmt(v)}</text>
+    {/each}
+    <text class="label" x={x0 + W / 2} y={-y0 + 2.9 * f} text-anchor="middle">{xLabel}</text>
+    <text class="label" transform="translate({x0 - 3.6 * f} {-y0 - H / 2}) rotate(-90)"
+      text-anchor="middle">{yLabel}</text>
+    {#if colorbar}
+      {@const cx = x1 + 1.2 * f}
+      <rect x={cx} y={-y1} width={f} height={H} fill="url(#{uid}-cb)" />
+      {#each colorbar.ticks as tk (tk.t)}
+        <line x1={cx + f} x2={cx + 1.4 * f} y1={-y0 - tk.t * H} y2={-y0 - tk.t * H} />
+        <text x={cx + 1.6 * f} y={-y0 - tk.t * H + 0.35 * f}>{tk.text}</text>
+      {/each}
+      <text class="label" transform="translate({cx + 6.6 * f} {-y0 - H / 2}) rotate(-90)"
+        text-anchor="middle">{colorbar.label}</text>
+    {/if}
+  </g>
+</svg>
+
+<style>
+  svg {
+    display: block;
+    width: 100%;
+    overflow: visible;
+  }
+  .axes line,
+  .axes rect {
+    stroke: var(--muted);
+  }
+  .axes text {
+    fill: var(--muted);
+    stroke: none;
+  }
+  .axes text.label {
+    fill: var(--ink);
+  }
+</style>

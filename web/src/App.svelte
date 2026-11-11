@@ -3,18 +3,23 @@
   import CoilForm from './lib/CoilForm.svelte';
   import { Computer } from './lib/compute.svelte';
   import BzProfiles from './lib/BzProfiles.svelte';
+  import CrossSection, { type Fill } from './lib/CrossSection.svelte';
   import { TAB_TIPS } from './lib/help';
   import ImpedancePlot from './lib/ImpedancePlot.svelte';
   import Num from './lib/Num.svelte';
   import { COUPLINGS, GAP_REFS, VNA_SETUPS, defaultParams } from './lib/protocol';
   import Summary from './lib/Summary.svelte';
+  import SideView from './lib/SideView.svelte';
   import Tabs from './lib/Tabs.svelte';
   import TransferPlot from './lib/TransferPlot.svelte';
   import TurnCurrents from './lib/TurnCurrents.svelte';
   import VnaPlot from './lib/VnaPlot.svelte';
 
-  const TABS = ['Bz profiles', 'Impedance', 'Transfer A→B', 'VNA', 'Turn currents'] as const;
-  let tab: string = $state('Impedance');
+  const TABS = ['Cross-section', 'Side view', 'Bz profiles', 'Impedance', 'Transfer A→B', 'VNA',
+    'Turn currents'] as const;
+  const FILLS: Fill[] = ['|I|', '|V|', 'none'];
+  let tab: string = $state('Cross-section');
+  let fill: Fill = $state('|I|');
 
   const params = $state(defaultParams());
   const computer = new Computer();
@@ -51,6 +56,7 @@
       <Choice label="setup" tip="vna_setup" bind:value={params.vna_setup} options={VNA_SETUPS} />
       <Num label="Z0" tip="z0" bind:value={params.z0} unit="Ω" step={1} min={1} />
       <Num label="source power" tip="p_dbm" bind:value={params.p_dbm} unit="dBm" step={1} />
+      <Choice label="cross-section fill" tip="fill" bind:value={fill} options={FILLS} />
     </fieldset>
     <fieldset>
       <legend>Analysis</legend>
@@ -83,7 +89,11 @@
       {@const r = computer.result}
       <Tabs tabs={TABS} bind:selected={tab} label="Results" tips={TAB_TIPS}>
         {#snippet panel()}
-          {#if tab === 'Bz profiles'}
+          {#if tab === 'Cross-section'}
+            <CrossSection {r} {fill} />
+          {:else if tab === 'Side view'}
+            <SideView {r} />
+          {:else if tab === 'Bz profiles'}
             <BzProfiles {r} />
           {:else if tab === 'Impedance'}
             <ImpedancePlot {r} />
