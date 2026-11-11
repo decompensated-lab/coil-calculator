@@ -10,3 +10,4 @@ build/
 examples/out/
 .claude/settings.local.json
 rust/target/
+node_modules/

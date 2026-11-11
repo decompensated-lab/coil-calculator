@@ -11,7 +11,10 @@ the solve time measured inside the module.
 Capacitance: ``capacitance_matrix`` (assembly + solve) for the same cases, the port timed inside
 the module, the reference in-process.
 
-    uv run python tests/port/bench.py [--backend wasm|wasm-nosimd|native] [--repeat N]
+    uv run python tests/port/bench.py [--backend wasm|wasm-nosimd|native] [--repeat N] [--pyodide]
+
+``--pyodide`` adds the reference itself run under Pyodide (``bench_pyodide.mjs``; needs
+``pnpm install`` in ``tests/port/pyodide`` and network access for Pyodide's numpy/scipy).
 
 Times are the best of ``--repeat`` runs; the first call into a fresh WASM module is slower
 while V8 tiers the code up. numpy runs single-threaded only if ``OPENBLAS_NUM_THREADS=1``.
@@ -138,7 +141,7 @@ def run(backend: str, repeat: int) -> list[tuple]:
 
 
 def run_capacitance(backend: str, repeat: int) -> list[tuple]:
-    """Whole ``capacitance_matrix``: (case, n, reference s, port cold s, port warm s, max|dC|)."""
+    """Whole ``capacitance_matrix``: (case, n, ref s, port cold s, port warm s, max|dC|, C_ref)."""
     from coilcal import capacitance as cap
 
     rows = []
@@ -159,14 +162,35 @@ def run_capacitance(backend: str, repeat: int) -> list[tuple]:
         port.close()
         dc = np.max(np.abs(c - c_ref)) / np.max(np.abs(c_ref))
         n = len(np.load(CACHE / f"{name}.npz")["a"])
-        rows.append((name, n, t_ref, times[0], min(times[1:]), dc))
+        rows.append((name, n, t_ref, times[0], min(times[1:]), dc, c_ref))
     return rows
+
+
+def run_pyodide(repeat: int) -> dict:
+    """The reference's ``capacitance_matrix`` under Pyodide: {case: {cold, warm, solve, c}}."""
+    import json
+    import tempfile
+
+    cases = {name: coil_table(p.coils()).tolist() for name, p in _cases().items()}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(cases, f)
+    script = Path(__file__).with_name("bench_pyodide.mjs")
+    out = subprocess.run(
+        ["node", "--no-warnings", str(script), f.name, str(repeat)],
+        check=True, capture_output=True, text=True,
+    ).stdout  # fmt: skip
+    os.unlink(f.name)
+    res = json.loads(out)
+    for r in res.values():
+        r["c"] = np.array(r.pop("c_re")) + 1j * np.array(r.pop("c_im"))
+    return res
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend", choices=("wasm", "wasm-nosimd", "native"), default="wasm")
     ap.add_argument("--repeat", type=int, default=3)
+    ap.add_argument("--pyodide", action="store_true", help="also time the reference in Pyodide")
     args = ap.parse_args()
     capture()
     rows = run(args.backend, args.repeat)
@@ -180,10 +204,20 @@ def main() -> None:
             f"{name:14} {solver:11} {n:5d} {dtype:>10} {cond:8.1e} "
             f"{res:9.1e} {dx:9.1e} {cond * EPS:9.1e} {dc:9.1e} {t:8.3f}"
         )
+    pyo = run_pyodide(args.repeat) if args.pyodide else {}
     print("\ncapacitance_matrix (assembly + solve), seconds; reference in-process")
-    print(f"{'case':14} {'n':>5} {'reference':>9} {'port cold':>9} {'port warm':>9} {'max|dC|':>9}")
-    for name, n, t_ref, cold, warm, dc in run_capacitance(args.backend, args.repeat):
-        print(f"{name:14} {n:5d} {t_ref:9.3f} {cold:9.3f} {warm:9.3f} {dc:9.1e}")
+    head = f"{'case':14} {'n':>5} {'reference':>9} {'port cold':>9} {'port warm':>9} {'max|dC|':>9}"
+    if pyo:
+        head += f" {'pyodide cold':>12} {'pyodide warm':>12} {'(solve)':>8} {'speed-up':>8} {'pyo dC':>8}"
+    print(head)
+    for name, n, t_ref, cold, warm, dc, c_ref in run_capacitance(args.backend, args.repeat):
+        line = f"{name:14} {n:5d} {t_ref:9.3f} {cold:9.3f} {warm:9.3f} {dc:9.1e}"
+        if name in pyo:
+            r = pyo[name]
+            dcp = np.max(np.abs(r["c"] - c_ref)) / np.max(np.abs(c_ref))
+            line += f" {r['cold']:12.3f} {r['warm']:12.3f} {r['solve']:8.3f}"
+            line += f" {r['warm'] / warm:7.1f}x {dcp:8.0e}"
+        print(line)
 
 
 if __name__ == "__main__":

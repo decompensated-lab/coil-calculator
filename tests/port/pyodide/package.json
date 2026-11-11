@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Pyodide runtime for timing the Python reference under WASM (tests/port/bench_pyodide.mjs)",
+  "dependencies": {
+    "pyodide": "314.0.7"
+  }
+}
