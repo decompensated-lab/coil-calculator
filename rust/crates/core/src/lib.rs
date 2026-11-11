@@ -4,4 +4,5 @@
 pub type c64 = num_complex::Complex<f64>;
 
 pub mod linalg;
+pub mod loops;
 pub mod special;
