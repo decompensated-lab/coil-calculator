@@ -4,6 +4,7 @@ mod wire;
 
 use coilcal_core::capacitance::{self as cap, Matrix};
 use coilcal_core::geometry::{Coil, Former};
+use coilcal_core::wirepair::{self as wp, InsulatedWire};
 use coilcal_core::{c64, field, inductance as ind, linalg, loops, mutual, special};
 use std::io::{self, BufReader, BufWriter};
 use std::time::Instant;
@@ -293,6 +294,45 @@ fn b_axis(args: &[Array]) -> Result<Vec<Array>, String> {
     Ok(vec![map(field::b_axis_rings), map(field::b_axis_sheet)])
 }
 
+/// `pair_capacitance(wires (2, 4) [a, b, eps_re, eps_im], spacing, rtol, max_terms,
+/// points (P, 2)) -> [C, n_terms, converged, V (2,), potential (P,), tan_delta, G'(1 MHz)]`.
+fn pair_capacitance(args: &[Array]) -> Result<Vec<Array>, String> {
+    let [w, s, rtol, max_terms, pts] = args else {
+        return Err("expected 5 arrays".into());
+    };
+    let ([_, 4], [_, 2]) = (&w.shape[..], &pts.shape[..]) else {
+        return Err("bad shapes".into());
+    };
+    let wire = |r: &[f64]| InsulatedWire {
+        a: r[0],
+        b: r[1],
+        eps: c64::new(r[2], r[3]),
+    };
+    let res = wp::pair_capacitance(
+        wire(&w.data[..4]),
+        wire(&w.data[4..8]),
+        scalar(s)?,
+        scalar(rtol)?,
+        scalar(max_terms)? as usize,
+    )?;
+    let phi: Vec<c64> = pts
+        .data
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&[x, y]| res.potential(x, y))
+        .collect();
+    Ok(vec![
+        from_c64(vec![], &[res.c]),
+        Array::scalar(res.n_terms as f64),
+        Array::scalar(res.converged as u8 as f64),
+        from_c64(vec![2], &res.v),
+        from_c64(vec![phi.len()], &phi),
+        Array::scalar(res.tan_delta()),
+        Array::scalar(res.conductance(1e6)),
+    ])
+}
+
 fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
     match name {
         "echo" => Ok(args),
@@ -306,6 +346,18 @@ fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
         "mutual_matrix" => mutual_matrix(&args),
         "unit_fields" => unit_fields(&args),
         "b_axis" => b_axis(&args),
+        "pair_capacitance" => pair_capacitance(&args),
+        "bare_pair_capacitance" => {
+            let [a1, a2, s] = &args[..] else {
+                return Err("expected a1, a2, s".into());
+            };
+            Ok(vec![Array::scalar(wp::bare_pair_capacitance(
+                scalar(a1)?,
+                scalar(a2)?,
+                scalar(s)?,
+            )?)])
+        }
+        "effective_radius" => map_real(&args, |[a, b, e]| wp::effective_radius(a, b, e)),
         "capacitance_system" => capacitance_system(&args),
         "capacitance_matrix" => capacitance_matrix(&args),
         "auto_n_sub" => {

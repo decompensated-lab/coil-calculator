@@ -20,6 +20,7 @@ name = "coilcal-core"
 version = "0.1.0"
 dependencies = [
  "complex-bessel",
+ "libm",
  "num-complex",
 ]
 

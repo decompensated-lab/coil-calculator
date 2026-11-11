@@ -11,3 +11,4 @@ pub mod linalg;
 pub mod loops;
 pub mod mutual;
 pub mod special;
+pub mod wirepair;
