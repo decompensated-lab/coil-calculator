@@ -4,7 +4,7 @@ mod wire;
 
 use coilcal_core::capacitance::{self as cap, Matrix};
 use coilcal_core::geometry::{Coil, Former};
-use coilcal_core::{c64, linalg, loops, special};
+use coilcal_core::{c64, field, inductance as ind, linalg, loops, mutual, special};
 use std::io::{self, BufReader, BufWriter};
 use std::time::Instant;
 use wire::Array;
@@ -216,6 +216,83 @@ fn capacitance_matrix(args: &[Array]) -> Result<Vec<Array>, String> {
     ])
 }
 
+/// `coil_quantities(coils, freqs)`: per coil (rows) and frequency (columns, 0 = DC)
+/// `[L, L_rosa, R_ac, srf_lumped, k_s, k_m]`, then per coil `[L_sheet, L_wheeler, C_medhurst]`.
+fn coil_quantities(args: &[Array]) -> Result<Vec<Array>, String> {
+    let [c, f] = args else {
+        return Err("expected coils, freqs".into());
+    };
+    let (cs, fs) = (coils(c)?, &f.data);
+    let grid = |g: &dyn Fn(&Coil, f64) -> f64| {
+        let v = cs
+            .iter()
+            .flat_map(|c| fs.iter().map(move |&f| g(c, f)))
+            .collect();
+        Array::real(vec![cs.len(), fs.len()], v)
+    };
+    let per = |g: &dyn Fn(&Coil) -> f64| Array::real(vec![cs.len()], cs.iter().map(g).collect());
+    Ok(vec![
+        grid(&ind::self_inductance),
+        grid(&ind::rosa_inductance),
+        grid(&|c, f| ind::ac_resistance(c, f, loops::RHO_CU)),
+        grid(&ind::srf_lumped),
+        grid(&|c, f| ind::rosa_corrections(c, f).0),
+        grid(&|c, f| ind::rosa_corrections(c, f).1),
+        per(&ind::sheet_inductance),
+        per(&ind::wheeler_inductance),
+        per(&ind::self_capacitance_medhurst),
+    ])
+}
+
+/// `mutual_matrix(coils[a, b], n_phi (0 = auto), rtol, max_n_phi)`.
+fn mutual_matrix(args: &[Array]) -> Result<Vec<Array>, String> {
+    let [c, n_phi, rtol, max_n] = args else {
+        return Err("expected 4 arrays".into());
+    };
+    let [a, b] = &coils(c)?[..] else {
+        return Err("expected two coils".into());
+    };
+    let n_phi = scalar(n_phi)? as usize;
+    let m = mutual::mutual_matrix(
+        a,
+        b,
+        (n_phi > 0).then_some(n_phi),
+        scalar(rtol)?,
+        scalar(max_n)? as usize,
+    )?;
+    Ok(vec![Array::real(vec![a.n_turns, b.n_turns], m)])
+}
+
+/// `unit_fields(coils, points (P, 3)) -> (T, P, 3)`.
+fn unit_fields(args: &[Array]) -> Result<Vec<Array>, String> {
+    let [c, pts] = args else {
+        return Err("expected coils, points".into());
+    };
+    let (cs, pts) = (coils(c)?, points(pts)?);
+    let t: usize = cs.iter().map(|c| c.n_turns).sum();
+    Ok(vec![Array::real(
+        vec![t, pts.len(), 3],
+        field::unit_fields(&cs, &pts),
+    )])
+}
+
+/// `b_axis(coil, z) -> [B_z rings, B_z sheet]` per ampere.
+fn b_axis(args: &[Array]) -> Result<Vec<Array>, String> {
+    let [c, z] = args else {
+        return Err("expected coil, z".into());
+    };
+    let [coil] = &coils(c)?[..] else {
+        return Err("expected one coil".into());
+    };
+    let map = |g: fn(&Coil, f64) -> f64| {
+        Array::real(
+            z.shape.clone(),
+            z.data.iter().map(|&z| g(coil, z)).collect(),
+        )
+    };
+    Ok(vec![map(field::b_axis_rings), map(field::b_axis_sheet)])
+}
+
 fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
     match name {
         "echo" => Ok(args),
@@ -224,6 +301,11 @@ fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
         "ellipe" => map_real(&args, |[m]| special::ellipe(m)),
         "ellipkm1" => map_real(&args, |[p]| special::ellipkm1(p)),
         "jve" => jve(&args),
+        "coil_quantities" => coil_quantities(&args),
+        "nagaoka" => map_real(&args, |[d, l]| ind::nagaoka(d, l)),
+        "mutual_matrix" => mutual_matrix(&args),
+        "unit_fields" => unit_fields(&args),
+        "b_axis" => b_axis(&args),
         "capacitance_system" => capacitance_system(&args),
         "capacitance_matrix" => capacitance_matrix(&args),
         "auto_n_sub" => {

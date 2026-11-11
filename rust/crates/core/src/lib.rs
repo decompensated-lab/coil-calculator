@@ -4,7 +4,10 @@
 pub type c64 = num_complex::Complex<f64>;
 
 pub mod capacitance;
+pub mod field;
 pub mod geometry;
+pub mod inductance;
 pub mod linalg;
 pub mod loops;
+pub mod mutual;
 pub mod special;

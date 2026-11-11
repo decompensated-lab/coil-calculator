@@ -97,6 +97,13 @@ impl Coil {
     pub fn mean_radius(&self) -> f64 {
         (self.former_d + self.insulation_d) / 2.0
     }
+    pub fn mean_d(&self) -> f64 {
+        2.0 * self.mean_radius()
+    }
+    /// Length of the helical conductor, excluding leads [m].
+    pub fn wire_length(&self) -> f64 {
+        self.n_turns as f64 * (2.0 * std::f64::consts::PI * self.mean_radius()).hypot(self.pitch)
+    }
     pub fn length(&self) -> f64 {
         self.n_turns as f64 * self.pitch
     }
