@@ -4,7 +4,9 @@
 //!
 //! [`call`] is the byte interface used by the browser worker and by the port tests:
 //!
-//! * request: `u32 count`, then per parameter `u32 name_len, name (UTF-8), f64 value`;
+//! * request: `u32 count`, then per parameter `u32 name_len, name (UTF-8), f64 value`; the
+//!   parameter `kind` picks the model: 0 = the coils ([`Params`]), 1 = the wire-pair
+//!   calculator ([`crate::pair::PairParams`]);
 //! * response: `u8 0`, `u32 count`, then per result `u32 name_len, name, u8 kind, u8 ndim,
 //!   u32 shape[ndim]`, followed by the data: kind 0 real f64, kind 1 complex (re, im
 //!   interleaved), kind 2 UTF-8 text lines (`u32 len, bytes` each, shape = `[lines]`);
@@ -109,7 +111,7 @@ pub struct Params {
     pub x_line_z_mm: f64,
 }
 
-fn check_dielectric(what: &str, d: &Dielectric) -> Result<(), String> {
+pub(crate) fn check_dielectric(what: &str, d: &Dielectric) -> Result<(), String> {
     if !(d.eps_r >= 1.0) {
         return Err(format!("{what} εr must be ≥ 1"));
     }
@@ -176,6 +178,42 @@ impl CoilParams {
     }
 }
 
+/// Request parameters: lookup by name with the checks every model needs.
+pub struct Values {
+    values: Vec<(String, f64)>,
+    used: Vec<bool>,
+}
+
+impl Values {
+    pub fn new(values: Vec<(String, f64)>) -> Self {
+        let used = vec![false; values.len()];
+        Values { values, used }
+    }
+
+    /// The value of `name`; an error if it is missing or not finite (an empty input).
+    pub fn get(&mut self, name: &str) -> Result<f64, String> {
+        let i = self
+            .values
+            .iter()
+            .position(|(n, _)| n == name)
+            .ok_or(format!("missing parameter {name}"))?;
+        self.used[i] = true;
+        let v = self.values[i].1;
+        if !v.is_finite() {
+            return Err(format!("an input is empty or not a number ({name})"));
+        }
+        Ok(v)
+    }
+
+    /// An error if a parameter was never asked for (a misspelled name).
+    pub fn finish(&self) -> Result<(), String> {
+        match self.used.iter().position(|u| !u) {
+            Some(i) => Err(format!("unknown parameter {}", self.values[i].0)),
+            None => Ok(()),
+        }
+    }
+}
+
 impl Params {
     /// The coils, B placed by the gap rule; checks that they do not intersect.
     pub fn coils(&self) -> Result<Vec<Coil>, String> {
@@ -217,20 +255,8 @@ impl Params {
 
     /// Parameters from `name -> value`; enums are codes (see the match arms). Every name must
     /// be present and finite, and no other names are allowed.
-    pub fn decode(values: &[(String, f64)]) -> Result<Params, String> {
-        let mut used = vec![false; values.len()];
-        let mut get = |name: &str| -> Result<f64, String> {
-            let i = values
-                .iter()
-                .position(|(n, _)| n == name)
-                .ok_or(format!("missing parameter {name}"))?;
-            used[i] = true;
-            let v = values[i].1;
-            if !v.is_finite() {
-                return Err(format!("an input is empty or not a number ({name})"));
-            }
-            Ok(v)
-        };
+    pub fn decode(vals: &mut Values) -> Result<Params, String> {
+        let mut get = |name: &str| vals.get(name);
         let mut coil = |k: &str| -> Result<CoilParams, String> {
             let mut g = |f: &str| get(&format!("{k}.{f}"));
             Ok(CoilParams {
@@ -293,9 +319,7 @@ impl Params {
             p_dbm: get("p_dbm")?,
             x_line_z_mm: get("x_line_z_mm")?,
         };
-        if let Some(i) = used.iter().position(|u| !u) {
-            return Err(format!("unknown parameter {}", values[i].0));
-        }
+        vals.finish()?;
         Ok(p)
     }
 }
@@ -729,13 +753,13 @@ pub fn compute(p: &Params) -> Result<Results, String> {
 
 // ---- byte interface -----------------------------------------------------------------
 
-enum Data<'a> {
+pub(crate) enum Data<'a> {
     Real(&'a [f64]),
     Complex(&'a [c64]),
     Text(&'a [String]),
 }
 
-fn put(out: &mut Vec<u8>, name: &str, shape: &[usize], data: Data) {
+pub(crate) fn put(out: &mut Vec<u8>, name: &str, shape: &[usize], data: Data) {
     out.extend((name.len() as u32).to_le_bytes());
     out.extend(name.as_bytes());
     let kind = match data {
@@ -885,17 +909,20 @@ fn decode_request(req: &[u8]) -> Result<Vec<(String, f64)>, String> {
 
 /// Request bytes -> response bytes (see the module docs).
 pub fn call(req: &[u8]) -> Vec<u8> {
-    let result = decode_request(req)
-        .and_then(|v| Params::decode(&v))
-        .and_then(|p| compute(&p));
-    let mut out = Vec::new();
-    match result {
-        Ok(r) => {
-            out.push(0);
-            r.encode(&mut out);
+    let mut out = vec![0];
+    let result = decode_request(req).and_then(|v| {
+        let mut vals = Values::new(v);
+        match vals.get("kind")? as i64 {
+            0 => compute(&Params::decode(&mut vals)?).map(|r| r.encode(&mut out)),
+            1 => crate::pair::compute(&crate::pair::PairParams::decode(&mut vals)?)
+                .map(|r| r.encode(&mut out)),
+            _ => Err("bad kind code".into()),
         }
+    });
+    match result {
+        Ok(()) => {}
         Err(e) => {
-            out.push(1);
+            out = vec![1];
             out.extend((e.len() as u32).to_le_bytes());
             out.extend(e.as_bytes());
         }

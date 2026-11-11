@@ -12,6 +12,7 @@ import pytest
 from conftest import coil_table
 
 from coilcal.gui import model as gm
+from coilcal.gui import pair as gp
 from coilcal.materials import Dielectric, Material
 from coilcal.types import Coupling, Grounding
 
@@ -21,7 +22,7 @@ COIL_FIELDS = ["wire_d_mm", "pitch_mm", "former_d_mm", "turns", "insulation_d_mm
 
 
 def flat(p: gm.Params) -> dict[str, float]:
-    d: dict[str, float] = {}
+    d: dict[str, float] = {"kind": 0}
     for k, c in (("a", p.a), ("b", p.b)):
         d |= {f"{k}.{f}": getattr(c, f) for f in COIL_FIELDS}
         d |= {
@@ -77,8 +78,8 @@ def decode(arr: np.ndarray) -> dict[str, np.ndarray | list[str]]:
     return out
 
 
-def call(port, p: gm.Params):
-    (resp,) = port("app", encode(flat(p)))
+def call(port, p: gm.Params | gp.PairParams):
+    (resp,) = port("app", encode(flat(p) if isinstance(p, gm.Params) else flat_pair(p)))
     return decode(resp)
 
 
@@ -212,3 +213,82 @@ def test_capacitance_is_reused(port):
     call(port, replace(p, a=replace(p.a, turns=11)))  # new geometry: A, A+B, vacuum A solved
     cold = time.perf_counter() - t0
     assert warm < 0.7 * cold, (warm, cold)
+
+
+# ---- wire-pair calculator (kind 1): gui/pair.py compute_pair ---------------------------
+
+
+def flat_pair(p: gp.PairParams) -> dict[str, float]:
+    d: dict[str, float] = {"kind": 1}
+    for k, w in (("w1", p.w1), ("w2", p.w2)):
+        for f in ["conductor_d_mm", "insulation_d_mm", "eps_r", "tan_delta"]:
+            d[f"{k}.{f}"] = getattr(w, f)
+    d["same"] = p.same
+    d["spacing_ref"] = list(gp.SpacingRef).index(p.spacing_ref)
+    d["spacing_mm"] = p.spacing_mm
+    return d
+
+
+CENTRE = gp.SpacingRef.CENTRE
+BARE_WIRE = gp.WireParams(1.0, 1.0, Material.AIR, 1.0, 0.0)
+PAIRS = {
+    "gui-default": gp.PairParams(),
+    "bare": gp.PairParams(w1=BARE_WIRE, spacing_mm=0.3),
+    "unequal-centre": gp.PairParams(
+        w2=gp.WireParams(0.5, 0.9, Material.PVC, 3.5, 0.05), same=False, spacing_ref=CENTRE,
+        spacing_mm=2.0),
+    "from-coil-a": gp.PairParams(
+        w1=gp.WireParams(1.0, 1.06, Material.ENAMEL, 3.6, 0.01), spacing_ref=CENTRE,
+        spacing_mm=2.0),
+    "lossless-gap": gp.PairParams(w1=gp.WireParams(1.0, 1.6, Material.CUSTOM, 4.0), spacing_mm=1.0),
+    "bare-and-insulated": gp.PairParams(w2=BARE_WIRE, same=False, spacing_mm=0.5),
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("name", PAIRS)
+def test_pair(port, name):
+    p = PAIRS[name]
+    r = gp.compute_pair(p)
+    got = call(port, p)
+    n_terms, converged, spacing, c_bare, c_uniform, c_eff = got["scalars"]
+    assert (int(n_terms), bool(converged)) == (r.res.n_terms, r.res.converged)
+    assert complex(got["c"][0]) == pytest.approx(r.res.c_complex, rel=1e-12, abs=0)
+    assert got["v"] == pytest.approx(r.res.conductor_potentials, rel=1e-12, abs=1e-12)
+    w = [[x.a, x.b, x.eps.real, x.eps.imag] for x in r.res.wires]
+    assert got["wires"] == approx(w, 1e-15)
+    assert spacing == pytest.approx(r.res.spacing, rel=1e-15, abs=0)
+    uniform = np.nan if r.c_uniform is None else r.c_uniform
+    assert [c_bare, c_uniform, c_eff] == approx([r.c_bare, uniform, r.c_eff_radius], 1e-14)
+    assert got["gap"] == approx(r.gap, 1e-15)
+    assert got["sweep_exact"] == approx(r.sweep_exact, 1e-12)  # same convergence decisions
+    for key in ["sweep_bare", "sweep_eff"]:
+        assert got[key] == approx(getattr(r, key), 1e-14), key
+    uniform = np.full_like(r.gap, np.nan) if r.sweep_uniform is None else r.sweep_uniform
+    assert got["sweep_uniform"] == approx(uniform, 1e-14)
+    # the potential map draw_pair evaluates (1 V across the pair)
+    s, (w1, w2) = r.res.spacing, r.res.wires
+    bmax = max(w1.b, w2.b)
+    x = np.linspace(-s / 2 - w1.b - 1.2 * bmax, s / 2 + w2.b + 1.2 * bmax, 420)
+    y = np.linspace(-2.0 * bmax, 2.0 * bmax, 260)
+    assert got["field_x"] == approx(x, 1e-15)
+    assert got["field_y"] == approx(y, 1e-15)
+    xx, yy = np.meshgrid(x, y)
+    assert np.abs(got["phi"] - r.res.potential(xx, yy).real).max() <= 1e-12
+
+
+PAIR_ERRORS = {
+    "sleeves overlap": gp.PairParams(spacing_ref=CENTRE, spacing_mm=1.0),
+    "conductor Ø 0": gp.PairParams(w1=gp.WireParams(0.0, 1.5)),
+    "insulation < conductor": gp.PairParams(w1=gp.WireParams(1.0, 0.8)),
+    "eps_r < 1": gp.PairParams(w1=gp.WireParams(1.0, 1.5, Material.CUSTOM, 0.5)),
+    "bare conductors touch": gp.PairParams(w1=BARE_WIRE, spacing_ref=CENTRE, spacing_mm=1.0),
+}
+
+
+@pytest.mark.parametrize("name", PAIR_ERRORS)
+def test_pair_invalid_input_is_an_error(port, name):
+    p = PAIR_ERRORS[name]
+    with pytest.raises(ValueError):
+        gp.compute_pair(p)
+    with pytest.raises(ValueError):
+        call(port, p)

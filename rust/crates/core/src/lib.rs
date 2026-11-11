@@ -12,6 +12,7 @@ pub mod inductance;
 pub mod linalg;
 pub mod loops;
 pub mod mutual;
+pub mod pair;
 pub mod special;
 pub mod vna;
 pub mod wirepair;

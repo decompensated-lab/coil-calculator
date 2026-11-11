@@ -126,7 +126,7 @@ export function defaultParams(): Params {
 /** Parameter name -> value as `Params::decode` expects them (empty inputs become NaN). */
 export function flatten(p: Params): Record<string, number> {
   const num = (v: number | null | undefined) => (typeof v === 'number' ? v : NaN);
-  const out: Record<string, number> = {};
+  const out: Record<string, number> = { kind: 0 };
   for (const [k, c] of [['a', p.a], ['b', p.b]] as const) {
     for (const f of ['wire_d_mm', 'pitch_mm', 'former_d_mm', 'turns', 'insulation_d_mm',
       'former_wall_mm', 'former_overhang_mm'] as const) {
