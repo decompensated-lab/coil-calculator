@@ -3,7 +3,9 @@
 mod wire;
 
 use coilcal_core::capacitance::{self as cap, Matrix};
+use coilcal_core::circuit::{self, Coupling, End, Network, NetworkResult, Terminal};
 use coilcal_core::geometry::{Coil, Former};
+use coilcal_core::vna;
 use coilcal_core::wirepair::{self as wp, InsulatedWire};
 use coilcal_core::{c64, field, inductance as ind, linalg, loops, mutual, special};
 use std::io::{self, BufReader, BufWriter};
@@ -333,6 +335,133 @@ fn pair_capacitance(args: &[Array]) -> Result<Vec<Array>, String> {
     ])
 }
 
+/// `(coils, ground codes (C,) [0 floating, 1 start, 2 end], coupling [0 full, 1 magnetic,
+/// 2 electric], r_factor, ports (P, 4) [plus coil (-1 = ref), plus end (0 start, 1 end),
+/// minus coil, minus end]; (0, 4) = one port per coil)`.
+fn network(args: &[Array]) -> Result<Network, String> {
+    let [c, g, cp, rf, ports] = args else {
+        return Err("expected 5 network arrays".into());
+    };
+    let end = |x: f64| if x == 0.0 { End::Start } else { End::End };
+    let ground: Vec<Option<End>> = g
+        .data
+        .iter()
+        .map(|&x| (x != 0.0).then(|| end(x - 1.0)))
+        .collect();
+    let coupling = match scalar(cp)? as u8 {
+        0 => Coupling::Full,
+        1 => Coupling::Magnetic,
+        _ => Coupling::Electric,
+    };
+    let term = |coil: f64, e: f64| -> Terminal { (coil >= 0.0).then(|| (coil as usize, end(e))) };
+    let ports: Vec<(Terminal, Terminal)> = ports
+        .data
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|r| (term(r[0], r[1]), term(r[2], r[3])))
+        .collect();
+    let ports = (!ports.is_empty()).then_some(&ports[..]);
+    Network::new(
+        &coils(c)?,
+        &ground,
+        coupling,
+        scalar(rf)?,
+        loops::RHO_CU,
+        None,
+        ports,
+    )
+}
+
+fn result_arrays(r: &NetworkResult, np: usize) -> Vec<Array> {
+    let nf = r.freqs.len();
+    let nt = r.turn_currents.len() / (nf * np).max(1);
+    let nn = r.node_voltages.len() / (nf * np).max(1);
+    vec![
+        from_c64(vec![nf, np, np], &r.z),
+        from_c64(vec![nf, np, nt], &r.turn_currents),
+        from_c64(vec![nf, np, nn], &r.node_voltages),
+    ]
+}
+
+/// `network_solve(<network>, freqs) -> [z, turn_currents, node_voltages, c_node]`.
+fn network_solve(args: &[Array]) -> Result<Vec<Array>, String> {
+    let net = network(&args[..5])?;
+    let r = net.solve(&args[5].data)?;
+    let mut out = result_arrays(&r, net.ports.len());
+    let nn = (net.c_node.len() as f64).sqrt() as usize;
+    out.push(from_c64(vec![nn, nn], &net.c_node));
+    Ok(out)
+}
+
+/// `network_srf(<network>, port, f_lo, f_hi, n_scan)`.
+fn network_srf(args: &[Array]) -> Result<Vec<Array>, String> {
+    let net = network(&args[..5])?;
+    let [p, lo, hi, n] = &args[5..] else {
+        return Err("expected port, f_lo, f_hi, n_scan".into());
+    };
+    let f = net.srf(
+        scalar(p)? as usize,
+        scalar(lo)?,
+        scalar(hi)?,
+        scalar(n)? as usize,
+    )?;
+    Ok(vec![Array::scalar(f)])
+}
+
+/// `network_resonance(<network>, port, f_lo, f_hi) -> [f, q, r_parallel]`.
+fn network_resonance(args: &[Array]) -> Result<Vec<Array>, String> {
+    let net = network(&args[..5])?;
+    let [p, lo, hi] = &args[5..] else {
+        return Err("expected port, f_lo, f_hi".into());
+    };
+    let r = net.resonance(scalar(p)? as usize, scalar(lo)?, scalar(hi)?)?;
+    Ok([r.freq, r.q, r.r_parallel].map(Array::scalar).into())
+}
+
+/// `thru_solve(coil, mode [0 series, 1 shunt], ground_end [0 start, 1 end], r_factor, freqs)`.
+fn thru_solve(args: &[Array]) -> Result<Vec<Array>, String> {
+    let [c, mode, gnd, rf, freqs] = args else {
+        return Err("expected 5 arrays".into());
+    };
+    let [coil] = &coils(c)?[..] else {
+        return Err("expected one coil".into());
+    };
+    let mode = if scalar(mode)? == 0.0 {
+        vna::ThruMode::Series
+    } else {
+        vna::ThruMode::Shunt
+    };
+    let gnd = if scalar(gnd)? == 0.0 {
+        End::Start
+    } else {
+        End::End
+    };
+    let net = vna::thru_network(coil, mode, gnd, scalar(rf)?, loops::RHO_CU)?;
+    Ok(result_arrays(&net.solve(&freqs.data)?, 2))
+}
+
+/// `driven_turn_currents(z (F, P, P), turn_currents (F, P, T), emf (P,), z0)`.
+fn driven_turn_currents(args: &[Array]) -> Result<Vec<Array>, String> {
+    let [z, tc, emf, z0] = args else {
+        return Err("expected 4 arrays".into());
+    };
+    let [nf, np, _] = z.shape[..] else {
+        return Err("z must be (F, P, P)".into());
+    };
+    let res = NetworkResult {
+        freqs: vec![0.0; nf],
+        z: to_c64(z),
+        turn_currents: to_c64(tc),
+        node_voltages: vec![],
+    };
+    let (turn, port) = vna::driven_turn_currents(&res, np, &to_c64(emf), scalar(z0)?)?;
+    Ok(vec![
+        from_c64(vec![nf, tc.shape[2]], &turn),
+        from_c64(vec![nf, np], &port),
+    ])
+}
+
 fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
     match name {
         "echo" => Ok(args),
@@ -358,6 +487,29 @@ fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
             )?)])
         }
         "effective_radius" => map_real(&args, |[a, b, e]| wp::effective_radius(a, b, e)),
+        "network_solve" => network_solve(&args),
+        "network_srf" => network_srf(&args),
+        "network_resonance" => network_resonance(&args),
+        "thru_solve" => thru_solve(&args),
+        "driven_turn_currents" => driven_turn_currents(&args),
+        "z_to_s" => {
+            let [z, z0] = &args[..] else {
+                return Err("expected z, z0".into());
+            };
+            let np = z.shape.last().copied().unwrap_or(0);
+            Ok(vec![from_c64(
+                z.shape.clone(),
+                &vna::z_to_s(&to_c64(z), np, scalar(z0)?)?,
+            )])
+        }
+        "incident_voltage" => map_real(&args, |[p, z0]| vna::incident_voltage(p, z0)),
+        "geomspace" => {
+            let [a, b, n] = &args[..] else {
+                return Err("expected start, stop, num".into());
+            };
+            let v = circuit::geomspace(scalar(a)?, scalar(b)?, scalar(n)? as usize);
+            Ok(vec![Array::real(vec![v.len()], v)])
+        }
         "capacitance_system" => capacitance_system(&args),
         "capacitance_matrix" => capacitance_matrix(&args),
         "auto_n_sub" => {
