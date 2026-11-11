@@ -1,0 +1,11 @@
+[package]
+name = "coilcal-web"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+coilcal-core = { path = "../core" }

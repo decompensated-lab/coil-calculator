@@ -227,7 +227,7 @@ impl Params {
             used[i] = true;
             let v = values[i].1;
             if !v.is_finite() {
-                return Err(format!("parameter {name} is not a number"));
+                return Err(format!("an input is empty or not a number ({name})"));
             }
             Ok(v)
         };

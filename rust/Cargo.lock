@@ -25,6 +25,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "coilcal-web"
+version = "0.1.0"
+dependencies = [
+ "coilcal-core",
+]
+
+[[package]]
 name = "complex-bessel"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -190,7 +190,7 @@ def test_bad_requests(port):
     for values, match in [
         ({k: v for k, v in good.items() if k != "z0"}, "missing parameter z0"),
         (good | {"z_0": 50.0}, "unknown parameter z_0"),
-        (good | {"gap_mm": float("nan")}, "gap_mm is not a number"),
+        (good | {"gap_mm": float("nan")}, "empty or not a number \\(gap_mm\\)"),
         (good | {"vna_setup": 9}, "bad vna_setup"),
         (good | {"a.turns": 2.5}, "turns must be a positive integer"),
     ]:
