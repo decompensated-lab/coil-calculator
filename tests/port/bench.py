@@ -1,5 +1,6 @@
-"""Solver spike (PLAN.md, K3): real systems from the reference, solved by the port candidates.
+"""Port benchmarks: the dense solve (PLAN.md, K3) and the whole capacitance matrix.
 
+Solve:
 Captures the linear systems that ``numpy.linalg.solve`` sees in the reference (capacitance
 systems of the default GUI case and of a tight 30-turn case, lossy = complex and lossless =
 real, plus one MNA system), caches them under ``rust/target/port-systems/``, and solves each
@@ -7,7 +8,10 @@ with the port's LU in the check binary. Reports cond(A), residuals, the solution
 to numpy (to be read against cond(A)·ε), the difference in the derived capacitance matrix, and
 the solve time measured inside the module.
 
-    uv run python tests/port/bench_solve.py [--backend wasm|wasm-nosimd|native] [--repeat N]
+Capacitance: ``capacitance_matrix`` (assembly + solve) for the same cases, the port timed inside
+the module, the reference in-process.
+
+    uv run python tests/port/bench.py [--backend wasm|wasm-nosimd|native] [--repeat N]
 
 Times are the best of ``--repeat`` runs; the first call into a fresh WASM module is slower
 while V8 tiers the code up. numpy runs single-threaded only if ``OPENBLAS_NUM_THREADS=1``.
@@ -27,7 +31,7 @@ from unittest import mock
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
-from conftest import RUNNER, RUST, WASM_TARGET, CheckProcess
+from conftest import RUNNER, RUST, WASM_TARGET, CheckProcess, coil_table
 
 CACHE = RUST / "target" / "port-systems"
 EPS = np.finfo(float).eps
@@ -133,6 +137,32 @@ def run(backend: str, repeat: int) -> list[tuple]:
     return rows
 
 
+def run_capacitance(backend: str, repeat: int) -> list[tuple]:
+    """Whole ``capacitance_matrix``: (case, n, reference s, port cold s, port warm s, max|dC|)."""
+    from coilcal import capacitance as cap
+
+    rows = []
+    for name, params in _cases().items():
+        coils = params.coils()
+        t_ref = np.inf
+        for _ in range(repeat):
+            cap._CACHE.clear()
+            t0 = time.perf_counter()
+            c_ref = cap.capacitance_matrix(coils)
+            t_ref = min(t_ref, time.perf_counter() - t0)
+        port = check_process(backend)  # fresh module: the first call is the cold one
+        args = (coil_table(coils), 0, 0.6, 256, 0.6)
+        times = []
+        for _ in range(repeat + 1):
+            c, secs = port("capacitance_matrix", *args)
+            times.append(float(secs))
+        port.close()
+        dc = np.max(np.abs(c - c_ref)) / np.max(np.abs(c_ref))
+        n = len(np.load(CACHE / f"{name}.npz")["a"])
+        rows.append((name, n, t_ref, times[0], min(times[1:]), dc))
+    return rows
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend", choices=("wasm", "wasm-nosimd", "native"), default="wasm")
@@ -150,6 +180,10 @@ def main() -> None:
             f"{name:14} {solver:11} {n:5d} {dtype:>10} {cond:8.1e} "
             f"{res:9.1e} {dx:9.1e} {cond * EPS:9.1e} {dc:9.1e} {t:8.3f}"
         )
+    print("\ncapacitance_matrix (assembly + solve), seconds; reference in-process")
+    print(f"{'case':14} {'n':>5} {'reference':>9} {'port cold':>9} {'port warm':>9} {'max|dC|':>9}")
+    for name, n, t_ref, cold, warm, dc in run_capacitance(args.backend, args.repeat):
+        print(f"{name:14} {n:5d} {t_ref:9.3f} {cold:9.3f} {warm:9.3f} {dc:9.1e}")
 
 
 if __name__ == "__main__":
