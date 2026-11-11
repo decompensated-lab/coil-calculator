@@ -23,6 +23,7 @@ from typing import NamedTuple
 
 import magpylib as magpy
 import numpy as np
+from scipy.linalg import block_diag
 from scipy.optimize import brentq
 
 from .capacitance import capacitance_matrix
@@ -179,11 +180,8 @@ class CoilNetwork:
 
         # --- capacitance: turns -> nodes ----------------------------------------------
         if coupling is Coupling.MAGNETIC and nc > 1:
-            c_turn = np.zeros((nt, nt))
-            for i, c in enumerate(self.coils):
-                c_turn[self.turn_slice(i), self.turn_slice(i)] = capacitance_matrix(
-                    [c], n_sub=n_sub
-                )
+            # complex if any coil's dielectric is lossy (a real array would drop the loss)
+            c_turn = block_diag(*[capacitance_matrix([c], n_sub=n_sub) for c in self.coils])
         else:
             c_turn = capacitance_matrix(self.coils, n_sub=n_sub)
         self.c_turn = c_turn

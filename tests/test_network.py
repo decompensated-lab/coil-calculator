@@ -103,6 +103,24 @@ def test_coupling_split_magnetic_plus_electric():
     assert abs(full - (mag + ele)) < 1e-5 * abs(full)
 
 
+def test_magnetic_coupling_keeps_dielectric_loss():
+    # regression: the block-diagonal C of coupling="magnetic" used to be a real array, so the
+    # imaginary part of lossy dielectrics was silently discarded
+    lossy = cc.Dielectric(3.6, 0.02)
+    a = cc.SolenoidCoil(1e-3, 2e-3, 0.05, 4, insulation_d=1.1e-3, insulation=lossy)
+    b = a.moved(position=[0, 0, 0.03])
+    net = CoilNetwork([a, b], coupling="magnetic")
+    blk = capacitance_matrix([a])
+    assert np.iscomplexobj(blk) and np.any(blk.imag)
+    assert np.array_equal(net.c_turn[:4, :4], blk)
+    assert np.array_equal(net.c_turn[4:, 4:], capacitance_matrix([b]))
+    assert not np.any(net.c_turn[:4, 4:])
+    # lossless dielectrics keep the real path
+    clean = a.without_dielectrics()
+    assert not np.iscomplexobj(CoilNetwork([clean, clean.moved(position=[0, 0, 0.03])],
+                                           coupling="magnetic").c_turn)  # fmt: skip
+
+
 def test_network_field_matches_static_at_low_freq():
     a = typical(6)
     net = CoilNetwork([a], ground="end")
