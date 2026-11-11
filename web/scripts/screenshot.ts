@@ -1,6 +1,6 @@
 // Headless check of the running app: loads a URL in Chromium, waits until the summary (or an
 // error) shows, prints console errors and saves a PNG. Uses the DevTools protocol directly.
-// Usage: [DARK=1] node scripts/screenshot.ts <url> <out.png> [width] [height] [js to run first]
+// Usage: [DARK=1] [KEYS=ArrowRight,...] [NO_FOCUSGROUP=1] node scripts/screenshot.ts <url> <out.png> [width] [height] [js to run first]
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
@@ -45,6 +45,11 @@ try {
     const features = [{ name: 'prefers-color-scheme', value: 'dark' }];
     await send('Emulation.setEmulatedMedia', { features });
   }
+  if (process.env.NO_FOCUSGROUP) {
+    // test the fallback: hide native focusgroup support before the app's scripts run
+    const source = 'delete HTMLElement.prototype.focusGroup';
+    await send('Page.addScriptToEvaluateOnNewDocument', { source });
+  }
   await send('Page.navigate', { url });
   const ready = `document.querySelector('.summary:not(.stale)') ? 'ok'
     : document.querySelector('.status.error')?.textContent || ''`;
@@ -55,6 +60,18 @@ try {
     await sleep(500); // let the edit's recompute start
     state = '';
     for (let i = 0; i < 100 && !state; i++, await sleep(200)) state = await evaluate(ready);
+  }
+  // real key presses (KEYS=ArrowRight,Home,...), e.g. to test keyboard navigation
+  const codes: Record<string, number> = { ArrowLeft: 37, ArrowRight: 39, Home: 36, End: 35, Tab: 9 };
+  for (const key of (process.env.KEYS ?? '').split(',').filter(Boolean)) {
+    const k = { key, code: key, windowsVirtualKeyCode: codes[key] ?? 0 };
+    await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...k });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', ...k });
+    await sleep(100);
+  }
+  if (process.env.KEYS) {
+    console.log('focused:', await evaluate(`document.activeElement?.textContent?.trim()`),
+      '| selected:', await evaluate(`document.querySelector('[aria-selected=true]')?.textContent?.trim()`));
   }
   console.log('state:', state || 'timeout', '|', await evaluate(`document.querySelector('.status')?.textContent?.trim()`));
   const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });

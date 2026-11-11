@@ -1,5 +1,5 @@
 // Typed view of the arrays app::call returns, plus complex and number-formatting helpers.
-import type { Arr, Params, Raw } from './protocol';
+import { type Arr, type Params, type Raw, VNA_SETUPS } from './protocol';
 
 export interface Complex {
   re: number;
@@ -59,10 +59,17 @@ export function view(raw: Raw, params: Params) {
   const freqs = real('freqs');
   const nf = freqs.length;
   const perCoil = (k: string) => (c: number) => real(k).subarray(c * nf, (c + 1) * nf);
+  const vnaCoils = coils(arr('vna_coils'));
+  const offsets = (extra: number) =>
+    vnaCoils.reduce((o, c) => [...o, o[o.length - 1] + c.n_turns + extra], [0]);
   return {
     params,
     coils: coils(arr('coils')),
-    vnaCoils: coils(arr('vna_coils')),
+    vnaCoils,
+    /** Turn and node index ranges of each VNA coil: `[off[k], off[k + 1])`. */
+    turnOffsets: offsets(0),
+    nodeOffsets: offsets(1),
+    setupIndex: VNA_SETUPS.indexOf(params.vna_setup),
     freqs,
     iView,
     fView: freqs[iView],
@@ -84,7 +91,19 @@ export function view(raw: Raw, params: Params) {
     /** (F, 2) */
     drivePortI: arr('drive_port_i'),
     vPlus,
+    /** (F, T) turn currents and (F, Nn) node voltages for the VNA drive. */
+    driveTurnI: arr('drive_turn_i'),
+    driveNodeV: arr('drive_node_v'),
+    fieldX: real('field_x'),
+    fieldZ: real('field_z'),
+    /** (nz, nx, 3) complex B [T] in the plane y = 0. */
     fieldB: arr('field_b'),
+    lineZ: real('line_z'),
+    bzZ: arr('bz_z'),
+    bzZUniform: arr('bz_z_uniform'),
+    lineX: real('line_x'),
+    bzX: arr('bz_x'),
+    bzXUniform: arr('bz_x_uniform'),
     mStatic,
     kStatic,
     electricFraction,

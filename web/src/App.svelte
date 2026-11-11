@@ -2,10 +2,19 @@
   import Choice from './lib/Choice.svelte';
   import CoilForm from './lib/CoilForm.svelte';
   import { Computer } from './lib/compute.svelte';
+  import BzProfiles from './lib/BzProfiles.svelte';
+  import { TAB_TIPS } from './lib/help';
   import ImpedancePlot from './lib/ImpedancePlot.svelte';
   import Num from './lib/Num.svelte';
   import { COUPLINGS, GAP_REFS, VNA_SETUPS, defaultParams } from './lib/protocol';
   import Summary from './lib/Summary.svelte';
+  import Tabs from './lib/Tabs.svelte';
+  import TransferPlot from './lib/TransferPlot.svelte';
+  import TurnCurrents from './lib/TurnCurrents.svelte';
+  import VnaPlot from './lib/VnaPlot.svelte';
+
+  const TABS = ['Bz profiles', 'Impedance', 'Transfer A→B', 'VNA', 'Turn currents'] as const;
+  let tab: string = $state('Impedance');
 
   const params = $state(defaultParams());
   const computer = new Computer();
@@ -71,9 +80,22 @@
       <p class="banner" role="alert">{computer.error}</p>
     {/if}
     {#if computer.result}
-      <section class="plot">
-        <ImpedancePlot r={computer.result} />
-      </section>
+      {@const r = computer.result}
+      <Tabs tabs={TABS} bind:selected={tab} label="Results" tips={TAB_TIPS}>
+        {#snippet panel()}
+          {#if tab === 'Bz profiles'}
+            <BzProfiles {r} />
+          {:else if tab === 'Impedance'}
+            <ImpedancePlot {r} />
+          {:else if tab === 'Transfer A→B'}
+            <TransferPlot {r} />
+          {:else if tab === 'VNA'}
+            <VnaPlot {r} />
+          {:else if tab === 'Turn currents'}
+            <TurnCurrents {r} />
+          {/if}
+        {/snippet}
+      </Tabs>
       <section class={["summary", { stale: computer.error || computer.busy }]}>
         <Summary r={computer.result} />
       </section>
@@ -134,9 +156,6 @@
   }
   .status.error {
     color: var(--error);
-  }
-  .muted {
-    color: var(--muted);
   }
   .banner {
     margin: 0 0 10px;

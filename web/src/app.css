@@ -7,10 +7,11 @@
   --input: #ffffff;
   --warn: #b4541a;
   --error: #c0392b;
-  color-scheme: light;
+  --accent: #2a78d6;
+  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root {
     --ink: #f0efec;
     --muted: #a8a79f;
     --grid: #3a3936;
@@ -19,7 +20,7 @@
     --input: #2b2b29;
     --warn: #f0a050;
     --error: #ff7a6b;
-    color-scheme: dark;
+    --accent: #6aa8f0;
   }
 }
 * {
@@ -81,4 +82,16 @@ fieldset:disabled .row {
 .u-legend {
   color: var(--ink);
   font-size: 12px;
+}
+.plot-title {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.chart {
+  width: 100%;
+  min-width: 0;
+}
+.muted {
+  color: var(--muted);
 }
