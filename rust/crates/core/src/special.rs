@@ -7,6 +7,9 @@
 //! * Exponentially scaled Bessel functions of the first kind for complex argument from the
 //!   `complex-bessel` crate (a port of Amos, the same library behind `scipy.special.jve`).
 
+// Cephes coefficients are kept verbatim (more digits than f64 holds) for auditing.
+#![allow(clippy::excessive_precision)]
+
 use crate::c64;
 
 const ELLPK_P: [f64; 11] = [
