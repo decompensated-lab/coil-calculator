@@ -2,6 +2,8 @@
 
 mod wire;
 
+use coilcal_core::capacitance::{self as cap, Matrix};
+use coilcal_core::geometry::{Coil, Former};
 use coilcal_core::{c64, linalg, loops, special};
 use std::io::{self, BufReader, BufWriter};
 use std::time::Instant;
@@ -136,6 +138,84 @@ fn mutual_rings(args: &[Array]) -> Result<Vec<Array>, String> {
     Ok(vec![Array::real(vec![ca.len(), cb.len()], m)])
 }
 
+/// Coils as rows of `[wire_d, pitch, former_d, n_turns, px, py, pz, qx, qy, qz, qw,
+/// insulation_d, ins_eps_re, ins_eps_im, has_former, wall, f_eps_re, f_eps_im, overhang]`.
+fn coils(a: &Array) -> Result<Vec<Coil>, String> {
+    let [_, 19] = a.shape[..] else {
+        return Err(format!("coils: bad shape {:?}", a.shape));
+    };
+    let rows = a.data.as_chunks::<19>().0;
+    Ok(rows
+        .iter()
+        .map(|r| Coil {
+            wire_d: r[0],
+            pitch: r[1],
+            former_d: r[2],
+            n_turns: r[3] as usize,
+            position: [r[4], r[5], r[6]],
+            quat: [r[7], r[8], r[9], r[10]],
+            insulation_d: r[11],
+            insulation_eps: c64::new(r[12], r[13]),
+            former: (r[14] != 0.0).then(|| Former {
+                wall: r[15],
+                eps: c64::new(r[16], r[17]),
+                overhang: r[18],
+            }),
+        })
+        .collect())
+}
+
+/// `(coils, n_sub, alpha, n_phi, h_wire)`; `n_sub = 0` means automatic.
+fn cap_args(args: &[Array]) -> Result<(Vec<Coil>, cap::Options), String> {
+    let [c, n_sub, alpha, n_phi, h_wire] = args else {
+        return Err("expected 5 arrays".into());
+    };
+    let n_sub = scalar(n_sub)? as usize;
+    let opt = cap::Options {
+        n_sub: (n_sub > 0).then_some(n_sub),
+        alpha: scalar(alpha)?,
+        n_phi: scalar(n_phi)? as usize,
+        h_wire: scalar(h_wire)?,
+    };
+    Ok((coils(c)?, opt))
+}
+
+/// `capacitance_system(...) -> [A, rhs, seconds]`, real unless lossy.
+fn capacitance_system(args: &[Array]) -> Result<Vec<Array>, String> {
+    let (coils, opt) = cap_args(args)?;
+    let t0 = Instant::now();
+    let s = cap::system(&coils, &opt)?;
+    let secs = Array::scalar(t0.elapsed().as_secs_f64());
+    let out = |v: &[c64], shape: Vec<usize>| {
+        if s.lossy {
+            from_c64(shape, v)
+        } else {
+            Array::real(shape, v.iter().map(|z| z.re).collect())
+        }
+    };
+    Ok(vec![
+        out(&s.a, vec![s.n, s.n]),
+        out(&s.rhs, vec![s.n, s.n_turns]),
+        secs,
+    ])
+}
+
+/// `capacitance_matrix(...) -> [C, seconds]`.
+fn capacitance_matrix(args: &[Array]) -> Result<Vec<Array>, String> {
+    let (coils, opt) = cap_args(args)?;
+    let t0 = Instant::now();
+    let c = cap::capacitance_matrix(&coils, &opt)?;
+    let secs = Array::scalar(t0.elapsed().as_secs_f64());
+    let n: usize = coils.iter().map(|c| c.n_turns).sum();
+    Ok(vec![
+        match c {
+            Matrix::Real(v) => Array::real(vec![n, n], v),
+            Matrix::Complex(v) => from_c64(vec![n, n], &v),
+        },
+        secs,
+    ])
+}
+
 fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
     match name {
         "echo" => Ok(args),
@@ -144,9 +224,22 @@ fn dispatch(name: &str, args: Vec<Array>) -> Result<Vec<Array>, String> {
         "ellipe" => map_real(&args, |[m]| special::ellipe(m)),
         "ellipkm1" => map_real(&args, |[p]| special::ellipkm1(p)),
         "jve" => jve(&args),
+        "capacitance_system" => capacitance_system(&args),
+        "capacitance_matrix" => capacitance_matrix(&args),
+        "auto_n_sub" => {
+            let c = coils(args.first().ok_or("expected coils")?)?;
+            Ok(vec![Array::scalar(cap::auto_n_sub(&c) as f64)])
+        }
+        "ring_potential" => map_real(&args, |[b, rho, z]| cap::ring_potential(b, rho, z)),
+        "ring_field_rho" => map_real(&args, |[b, rho, z]| cap::ring_all(b, rho, z).1),
+        "ring_field_z" => map_real(&args, |[b, rho, z]| cap::ring_all(b, rho, z).2),
+        "gauss_legendre" => Ok([&cap::GL8_X[..], &cap::GL8_W, &cap::GL2_X, &cap::GL2_W]
+            .map(|v| Array::real(vec![v.len()], v.to_vec()))
+            .into()),
         "constants" => Ok(vec![
             Array::scalar(loops::MU_0),
             Array::scalar(loops::RHO_CU),
+            Array::scalar(cap::EPS0),
         ]),
         "mutual_coaxial" => map_real(&args, |[r1, r2, dz]| loops::mutual_coaxial(r1, r2, dz)),
         "a_phi_over_rho" => map_real(&args, |[a, rho, z]| loops::a_phi_over_rho(a, rho, z)),

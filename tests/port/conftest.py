@@ -58,6 +58,21 @@ def _read_array(inp: IO[bytes]) -> np.ndarray:
     return np.frombuffer(_read_exact(inp, n * dtype.itemsize), dtype).reshape(shape).copy()
 
 
+def coil_table(coils: list) -> np.ndarray:
+    """``SolenoidCoil``s as the numeric rows the check binary expects (see ``coils`` there)."""
+    rows = []
+    for c in coils:
+        f = c.former
+        fe = f.dielectric.eps_complex if f else 0j
+        ie = c.insulation.eps_complex
+        rows.append(
+            [c.wire_d, c.pitch, c.former_d, c.n_turns, *c.position, *c.orientation.as_quat(),
+             c.outer_wire_d, ie.real, ie.imag,
+             f is not None, f.wall if f else 0, fe.real, fe.imag, f.overhang if f else 0]
+        )  # fmt: skip
+    return np.array(rows, dtype=float)
+
+
 class CheckProcess:
     def __init__(self, cmd: list[str]) -> None:
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)

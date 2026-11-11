@@ -5,6 +5,7 @@
 //! A frequency of 0 means DC (Python accepts `None` or 0 for that).
 
 use crate::c64;
+use crate::geometry::{apply, apply_t, quat_matrix};
 use crate::special::{ellipe, ellipk, jve};
 use std::f64::consts::PI;
 
@@ -44,40 +45,6 @@ pub fn a_phi_over_rho(a: f64, rho: f64, z: f64) -> f64 {
         let a_phi = MU_0 / (PI * k) * (a / rho).sqrt() * ((1.0 - m / 2.0) * ellipk(m) - ellipe(m));
         a_phi / rho
     }
-}
-
-type Mat3 = [[f64; 3]; 3];
-
-/// Rotation matrix of a quaternion in scipy's `as_quat()` order (x, y, z, w).
-fn quat_matrix(q: [f64; 4]) -> Mat3 {
-    let n = q.iter().map(|v| v * v).sum::<f64>().sqrt();
-    let [x, y, z, w] = q.map(|v| v / n);
-    [
-        [
-            w * w + x * x - y * y - z * z,
-            2.0 * (x * y - z * w),
-            2.0 * (x * z + y * w),
-        ],
-        [
-            2.0 * (x * y + z * w),
-            w * w - x * x + y * y - z * z,
-            2.0 * (y * z - x * w),
-        ],
-        [
-            2.0 * (x * z - y * w),
-            2.0 * (y * z + x * w),
-            w * w - x * x - y * y + z * z,
-        ],
-    ]
-}
-
-/// `R^T v` (inverse rotation).
-fn apply_t(r: &Mat3, v: [f64; 3]) -> [f64; 3] {
-    std::array::from_fn(|i| r[0][i] * v[0] + r[1][i] * v[1] + r[2][i] * v[2])
-}
-
-fn apply(r: &Mat3, v: [f64; 3]) -> [f64; 3] {
-    std::array::from_fn(|i| r[i][0] * v[0] + r[i][1] * v[1] + r[i][2] * v[2])
 }
 
 /// Mutual inductances between two families of arbitrarily placed circular filaments [H].

@@ -39,7 +39,7 @@ def assert_close_cancelling(got, ref, m):
 
 
 def test_constants(port):
-    mu, rho_cu = port("constants")
+    mu, rho_cu, _ = port("constants")
     assert mu == mu_0 and rho_cu == L.RHO_CU
 
 
