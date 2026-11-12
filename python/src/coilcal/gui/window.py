@@ -295,6 +295,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg.setWindowTitle("coilcal guide")
         lay = QtWidgets.QVBoxLayout(dlg)
         tb = QtWidgets.QTextBrowser()
+        tb.setOpenExternalLinks(True)  # the credits link to the sources
         tb.setHtml(GUIDE_HTML)
         lay.addWidget(tb)
         dlg.resize(700, 600)

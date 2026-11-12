@@ -11,6 +11,8 @@ def dump(x: object) -> str:
 
 
 guide = GUIDE_HTML.strip().replace("<h2>", '<h2 id="guide-title">', 1)
+# external links leave the app running: open them in a new tab
+guide = guide.replace("<a href=", '<a target="_blank" rel="noopener" href=')
 out = Path(__file__).parents[2] / "web/src/lib/help.ts"
 out.write_text(
     "// Tooltips and the guide, generated from coilcal/gui/help.py by python/scripts/gen_help.py.\n"

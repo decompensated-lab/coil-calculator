@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- a short coil seen from the side: four turns on a former, with its two leads -->
+  <rect width="32" height="32" rx="6" fill="#2a78d6" />
+  <g fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">
+    <ellipse cx="9.5" cy="16" rx="2.6" ry="7.5" />
+    <ellipse cx="13.8" cy="16" rx="2.6" ry="7.5" />
+    <ellipse cx="18.2" cy="16" rx="2.6" ry="7.5" />
+    <ellipse cx="22.5" cy="16" rx="2.6" ry="7.5" />
+    <path d="M9.5 23.5V27M22.5 23.5V27" />
+  </g>
+</svg>
