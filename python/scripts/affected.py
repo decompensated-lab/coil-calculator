@@ -1,21 +1,24 @@
-"""Run only the checks and tests that a change affects.
+"""Run only the checks and tests that a change affects (run from ``python/``).
 
     uv run python scripts/affected.py               # uncommitted changes, untracked files too
     uv run python scripts/affected.py --base main   # everything since the branch left main
     uv run python scripts/affected.py -n            # print the plan, run nothing
     uv run python scripts/affected.py -- --port-backend native   # extra pytest arguments
 
+Paths are relative to the repository root, as git prints them.
+
 What runs:
 
-* Python files: ruff (check and format) on the changed files, mypy if ``src/`` changed, and
-  pytest on the test files whose imports reach a changed module, followed transitively
-  through an ``ast`` import graph of ``src/`` and ``tests/`` (each test also depends on the
-  ``conftest.py`` files above it).
-* ``rust/``: cargo fmt/clippy/test and the port tests (only ``test_web.py`` if just
+* Python files (``python/``): ruff (check and format) on the changed files, mypy if
+  ``python/src/`` changed, and pytest on the test files whose imports reach a changed module,
+  followed transitively through an ``ast`` import graph of ``python/src/`` and
+  ``python/tests/`` (each test also depends on the ``conftest.py`` files above it).
+* ``web/rust/``: cargo fmt/clippy/test and the port tests (only ``test_web.py`` if just
   ``crates/web`` changed).
-* ``web/``: svelte-check and the production build; ``test_web.py`` if the protocol client or
-  the smoke script changed.
-* Shared configuration (``pyproject.toml``, ``uv.lock``): everything on the Python side.
+* The rest of ``web/``: svelte-check and the production build; ``test_web.py`` if the
+  protocol client or the smoke script changed.
+* Shared configuration (``python/pyproject.toml``, ``python/uv.lock``): everything on the
+  Python side.
 * Documentation (``*.md``) and other files: nothing.
 
 Assumption: package ``__init__`` files only re-export. ``from coilcal.x import y`` therefore
@@ -29,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import os
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -36,13 +40,16 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-TESTS = ROOT / "tests"
+ROOT = Path(__file__).resolve().parents[2]
+PY = "python"  # the Python project: its commands run there, with paths relative to it
+RUST = "web/rust"
+SRC = ROOT / PY / "src"
+TESTS = ROOT / PY / "tests"
 PORT = TESTS / "port"
-TEST_WEB = "tests/port/test_web.py"
-EVERYTHING = {"pyproject.toml", "uv.lock"}
+TEST_WEB = "python/tests/port/test_web.py"
+EVERYTHING = {"python/pyproject.toml", "python/uv.lock"}
 WEB_CLIENT = {"web/src/lib/protocol.ts", "web/scripts/smoke.ts"}
+LINTED = ("src", "tests", "examples", "scripts")  # ruff targets, relative to python/
 
 
 def changed_files(base: str | None) -> set[str]:
@@ -141,31 +148,40 @@ class Plan:
             self.commands.append((cwd, list(argv)))
 
 
+def in_python(path: str) -> str:
+    """A repository path as seen from ``python/``, where the Python commands run."""
+    return os.path.relpath(ROOT / path, ROOT / PY)
+
+
 def plan(files: set[str], pytest_args: Sequence[str] = ()) -> Plan:
     p = Plan()
     py = sorted(f for f in files if f.endswith(".py"))
-    existing = [f for f in py if (ROOT / f).exists()]
+    existing = [in_python(f) for f in py if (ROOT / f).exists()]
     if files & EVERYTHING:
-        p.add(".", "uv", "run", "ruff", "check", "src", "tests", "examples")
-        p.add(".", "uv", "run", "ruff", "format", "--check", "src", "tests", "examples")
-        p.add(".", "uv", "run", "mypy")
-        p.tests.add("tests")
+        p.add(PY, "uv", "run", "ruff", "check", *LINTED)
+        p.add(PY, "uv", "run", "ruff", "format", "--check", *LINTED)
+        p.add(PY, "uv", "run", "mypy")
+        p.tests.add(str(TESTS.relative_to(ROOT)))
     elif py:
         if existing:
-            p.add(".", "uv", "run", "ruff", "check", *existing)
-            p.add(".", "uv", "run", "ruff", "format", "--check", *existing)
-        if any(f.startswith("src/") for f in py):
-            p.add(".", "uv", "run", "mypy")
+            p.add(PY, "uv", "run", "ruff", "check", *existing)
+            p.add(PY, "uv", "run", "ruff", "format", "--check", *existing)
+        if any(f.startswith("python/src/") for f in py):
+            p.add(PY, "uv", "run", "mypy")
         changed = {(ROOT / f).resolve() for f in py}
         p.tests.update(str(t.relative_to(ROOT)) for t in affected_tests(changed))
-    rust = [f for f in files if f.startswith("rust/")]
+    rust = [f for f in files if f.startswith(RUST + "/")]
     if rust:
-        p.add("rust", "cargo", "fmt", "--check")
-        p.add("rust", "cargo", "clippy", "--all-targets", "--", "-D", "warnings")
-        p.add("rust", "cargo", "test", "-q")
-        only_web = all(f.startswith("rust/crates/web/") for f in rust)
+        p.add(RUST, "cargo", "fmt", "--check")
+        p.add(RUST, "cargo", "clippy", "--all-targets", "--", "-D", "warnings")
+        p.add(RUST, "cargo", "test", "-q")
+        only_web = all(f.startswith(RUST + "/crates/web/") for f in rust)
         p.tests.add(TEST_WEB if only_web else str(PORT.relative_to(ROOT)))
-    web = [f for f in files if f.startswith("web/") and not f.endswith((".py", ".md"))]
+    web = [
+        f
+        for f in files
+        if f.startswith("web/") and f not in rust and not f.endswith((".py", ".md"))
+    ]
     if web:
         p.add("web", "pnpm", "check")
         p.add("web", "pnpm", "build")
@@ -177,7 +193,8 @@ def plan(files: set[str], pytest_args: Sequence[str] = ()) -> Plan:
     dirs = {t for t in p.tests if (ROOT / t).is_dir()}
     p.tests = {t for t in p.tests if t in dirs or not any(t.startswith(d + "/") for d in dirs)}
     if p.tests:
-        p.add(".", "uv", "run", "pytest", "-q", *sorted(p.tests), *pytest_args)
+        tests = sorted(in_python(t) for t in p.tests)
+        p.add(PY, "uv", "run", "pytest", "-q", *tests, *pytest_args)
     return p
 
 

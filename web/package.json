@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "wasm": "cd ../rust && cargo build --release --quiet --target wasm32-unknown-unknown -p coilcal-web && cp target/wasm32-unknown-unknown/release/coilcal_web.wasm ../web/src/lib/coilcal.wasm",
+    "wasm": "cd rust && cargo build --release --quiet --target wasm32-unknown-unknown -p coilcal-web && cp target/wasm32-unknown-unknown/release/coilcal_web.wasm ../src/lib/coilcal.wasm",
     "dev": "pnpm wasm && vite",
     "build": "pnpm wasm && vite build",
     "preview": "vite preview",

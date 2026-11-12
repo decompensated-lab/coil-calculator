@@ -1,8 +1,8 @@
 """Live differential tests of the Rust/WASM port against the Python reference.
 
-A session fixture builds ``rust/`` (``cargo build --release``) and keeps one check-binary
+A session fixture builds ``web/rust/`` (``cargo build --release``) and keeps one check-binary
 process alive; ``port(name, *arrays)`` sends a request in the binary wire format described in
-``rust/crates/check/src/wire.rs`` and returns the response arrays. ``--port-backend`` picks the
+``web/rust/crates/check/src/wire.rs`` and returns the response arrays. ``--port-backend`` picks the
 WASM build run under Node's ``node:wasi`` (default) or the native build. Missing cargo or
 Node skips these tests.
 """
@@ -19,7 +19,7 @@ from typing import IO
 import numpy as np
 import pytest
 
-RUST = Path(__file__).parents[2] / "rust"
+RUST = Path(__file__).parents[3] / "web" / "rust"
 RUNNER = Path(__file__).with_name("run_wasi.mjs")
 WASM_TARGET = "wasm32-wasip1"
 

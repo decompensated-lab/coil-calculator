@@ -1,6 +1,7 @@
 // Parameters, defaults and the byte format of `app::call` (rust/crates/core/src/app.rs).
-// Mirrors coilcal/gui/model.py's Params and coilcal/materials.py; tests/port/test_web.py checks
-// that the defaults and the encoding match the Python reference.
+// Mirrors coilcal/gui/model.py's Params and coilcal/materials.py;
+// python/tests/port/test_web.py checks that the defaults and the encoding match the Python
+// reference.
 // No imports, so Node can run this file directly (type stripping).
 
 export interface Dielectric {

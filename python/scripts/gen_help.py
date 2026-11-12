@@ -1,4 +1,4 @@
-"""Regenerate web/src/lib/help.ts from coilcal/gui/help.py: uv run python web/scripts/gen_help.py"""
+"""Regenerate web/src/lib/help.ts from coilcal/gui/help.py: uv run python scripts/gen_help.py"""
 
 import json
 from pathlib import Path
@@ -11,9 +11,9 @@ def dump(x: object) -> str:
 
 
 guide = GUIDE_HTML.strip().replace("<h2>", '<h2 id="guide-title">', 1)
-out = Path(__file__).parents[1] / "src/lib/help.ts"
+out = Path(__file__).parents[2] / "web/src/lib/help.ts"
 out.write_text(
-    "// Tooltips and the guide, generated from coilcal/gui/help.py by web/scripts/gen_help.py.\n"
+    "// Tooltips and the guide, generated from coilcal/gui/help.py by python/scripts/gen_help.py.\n"
     "// Edit help.py and regenerate; do not edit by hand.\n\n"
     f"export const TIPS: Record<string, string> = {dump(TIPS)};\n\n"
     f"export const TAB_TIPS: Record<string, string> = {dump(TAB_TIPS)};\n\n"

@@ -1,4 +1,4 @@
-"""The browser client: web/src/lib/protocol.ts with rust/crates/web under Node.
+"""The browser client: web/src/lib/protocol.ts with web/rust/crates/web under Node.
 
 Checks that the TypeScript defaults are the GUI's defaults, and that the request/response
 code and the module's exports work end to end (``app::call`` itself is compared with the
@@ -17,8 +17,8 @@ from test_app import flat, flat_pair
 from coilcal.gui import model as gm
 from coilcal.gui import pair as gp
 
-ROOT = Path(__file__).parents[2]
-WASM = ROOT / "rust/target/wasm32-unknown-unknown/release/coilcal_web.wasm"
+ROOT = Path(__file__).parents[3]
+WASM = ROOT / "web/rust/target/wasm32-unknown-unknown/release/coilcal_web.wasm"
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +29,7 @@ def smoke():
     subprocess.run(
         [cargo, "build", "--release", "--quiet", "-p", "coilcal-web",
          "--target", "wasm32-unknown-unknown"],
-        cwd=ROOT / "rust", check=True,
+        cwd=ROOT / "web/rust", check=True,
     )  # fmt: skip
     out = subprocess.run(
         [node, "scripts/smoke.ts", str(WASM)],

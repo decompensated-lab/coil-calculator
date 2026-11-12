@@ -7,7 +7,7 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-examples/out/
+python/examples/out/
 .claude/settings.local.json
-rust/target/
+web/rust/target/
 node_modules/

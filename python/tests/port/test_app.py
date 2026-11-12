@@ -2,7 +2,7 @@
 wire-pair calculator ``coilcal.gui.pair.compute_pair``.
 
 The request and response go through the same byte format the browser worker uses
-(``rust/crates/core/src/app.rs``), so this also checks that format.
+(``web/rust/crates/core/src/app.rs``), so this also checks that format.
 """
 
 import struct

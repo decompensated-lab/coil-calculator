@@ -1,5 +1,5 @@
 // Runs the browser module (coilcal_web.wasm) under Node with the TS client code and prints
-// JSON for tests/port/test_web.py. Usage: node scripts/smoke.ts <path to coilcal_web.wasm>
+// JSON for python/tests/port/test_web.py. Usage: node scripts/smoke.ts <path to coilcal_web.wasm>
 import { readFileSync } from 'node:fs';
 import {
   type Arr, type Exports, callWasm, decode, defaultPair, defaultParams, encode, flatten, flattenPair,

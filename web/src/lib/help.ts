@@ -1,4 +1,4 @@
-// Tooltips and the guide, generated from coilcal/gui/help.py by web/scripts/gen_help.py.
+// Tooltips and the guide, generated from coilcal/gui/help.py by python/scripts/gen_help.py.
 // Edit help.py and regenerate; do not edit by hand.
 
 export const TIPS: Record<string, string> = {

@@ -805,7 +805,7 @@ pub(crate) fn put(out: &mut Vec<u8>, name: &str, shape: &[usize], data: Data) {
     }
 }
 
-/// `(C, 19)` coil table, the column layout of `tests/port/conftest.py::coil_table`.
+/// `(C, 19)` coil table, the column layout of `python/tests/port/conftest.py::coil_table`.
 fn coil_table(coils: &[Coil]) -> Vec<f64> {
     coils
         .iter()

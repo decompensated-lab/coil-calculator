@@ -3,7 +3,7 @@
 Solve:
 Captures the linear systems that ``numpy.linalg.solve`` sees in the reference (capacitance
 systems of the default GUI case and of a tight 30-turn case, lossy = complex and lossless =
-real, plus one MNA system), caches them under ``rust/target/port-systems/``, and solves each
+real, plus one MNA system), caches them under ``web/rust/target/port-systems/``, and solves each
 with the port's LU in the check binary. Reports cond(A), residuals, the solution difference
 to numpy (to be read against cond(A)·ε), the difference in the derived capacitance matrix, and
 the solve time measured inside the module.

@@ -1,170 +1,44 @@
-# coilcal
+# coilcal: a coil calculator
 
-Models of single-layer cylindrical coils, parametrised like Coil64 (wire Ø, insulated Ø,
-pitch, former Ø, turns). It covers the static field, inductance and mutual inductance. It
-also has a turn-level circuit model for frequencies up to and beyond self-resonance. That
-model includes turn-to-turn capacitance with the wire insulation and the former's dielectric,
-VNA S-parameters, and a Qt GUI. SI units throughout. Phasors are peak amplitudes.
+Models of single-layer cylindrical coils beyond the usual inductance formulas. A coil is
+described the way [Coil64](https://coil32.net) does it (wire Ø, insulated Ø, pitch, former Ø,
+turns), and the model then follows every turn:
 
-```bash
-uv sync                      # Python 3.12, deps pinned in uv.lock (7-day cooldown)
-uv run coilcal-gui           # Qt GUI (F1 = guide; hover any control for help)
-uv run pytest -q             # full test suite (~25 s; GUI tests run offscreen)
-uv run python examples/demo.py --turns-a 10 --turns-b 5 --freq 5e6 --gap 0.05
+* static field, inductance and mutual inductance of one or two coils in any pose;
+* a turn-level circuit model for frequencies up to and beyond self-resonance, with the
+  turn-to-turn capacitance solved as a field problem, including the wire insulation and the
+  former's dielectric and their loss;
+* what a VNA measures: S-parameters of the usual fixtures, turn currents, the field for a
+  given drive;
+* a separate 2-D calculator for the capacitance of an insulated wire pair.
+
+SI units throughout. Phasors are peak amplitudes.
+
+## One model, two apps
+
+| | Browser app | Desktop app and Python library |
+|---|---|---|
+| where | [`web/`](web/) | [`python/`](python/) |
+| what | the model ported to Rust, compiled to WebAssembly, under a Svelte dashboard; runs entirely in the browser, no server | the reference implementation: a typed Python library (`coilcal`) and a Qt GUI on top of it |
+| use it | open **<https://ivan-galinskiy.github.io/coil-calculator/>** | `cd python && uv sync && uv run coilcal-gui` |
+| docs | [`web/README.md`](web/README.md) | [`python/README.md`](python/README.md) |
+
+Both show the same numbers and the same plots. The Python code is the reference: every Rust
+function, and the whole app computation, is tested against it
+([`python/tests/port/`](python/tests/port/)), so a model changes in Python first and is then
+ported.
+
 ```
-
-## Library
-
-### Static (quasi-DC) quantities
-
-```python
-import numpy as np
-import coilcal as cc
-from scipy.spatial.transform import Rotation as R
-
-a = cc.SolenoidCoil(wire_d=1.0e-3, pitch=2.0e-3, former_d=0.150, n_turns=10)
-b = cc.SolenoidCoil(1.0e-3, 2.0e-3, 0.150, 5,
-                    position=[0.02, 0, 0.08], orientation=R.from_euler("x", 15, degrees=True))
-
-cc.self_inductance(a, freq=5e6)                         # H (skin-effect internal L)
-cc.mutual_inductance(a, b)                              # H, any pose
-cc.coupling_coefficient(a, b)
-cc.induced_emf(a, b, current_a=1.0, freq=5e6)           # complex V, B open
-cc.induced_voltage_loaded(a, b, 1.0, 5e6, z_load=50)    # complex V across 50 Ω
-pts = np.array([[0, 0, z] for z in np.linspace(-0.1, 0.1, 5)])
-cc.field_B(a, pts, current=1.0, model="rings")          # T, via magpylib ("helix" too)
-print(cc.check_quasistatic(a, f_max=5e6))               # Medhurst SRF / electrical length
+python/           the reference: Python library + Qt desktop app (a uv project)
+  src/coilcal/      library modules, one per concern; gui/ is the Qt app
+  tests/            pytest; tests/port/ compares the Rust port with the Python reference
+  examples/         demo.py (CLI), demo.ipynb
+  scripts/          affected.py (run only the checks a change affects), gen_help.py
+web/              the browser app (Svelte 5, Vite, TypeScript)
+  src/              the interface
+  rust/             the model in Rust: crates/core (model + app layer), check (test driver),
+                    web (the WASM module)
 ```
-
-### Insulation and former
-
-```python
-from coilcal import Dielectric, Former, Material, SolenoidCoil
-
-coil = SolenoidCoil(
-    wire_d=1.0e-3, pitch=2.0e-3, former_d=0.150, n_turns=10,
-    insulation_d=1.06e-3, insulation=Material.ENAMEL.dielectric,       # εr 3.6, tanδ 0.01
-    former=Former(wall=3e-3, dielectric=Material.PMMA.dielectric, overhang=10e-3),
-)
-```
-
-* **Placement:** the wire centre sits at `former_d/2 + insulation_d/2`.
-* **What the dielectrics affect:** only the capacitance. Inductance and field are unchanged.
-* **Values:** `Material` presets are typical values around 1 MHz, so prefer datasheet values;
-  use `Dielectric(eps_r, tan_delta)` for custom ones.
-* **Sharing a former:** coaxial coils with the same `Former` settings whose tubes meet share
-  one tube.
-
-### Turn-level network, resonance and VNA
-
-```python
-from coilcal import CoilNetwork
-
-pickup = SolenoidCoil(1.0e-3, 2.0e-3, 0.150, 5, position=[0, 0, 0.065])  # coaxial with coil
-net = CoilNetwork([coil, pickup], ground=["end", "end"])  # "end" / "start" / "floating"
-res = net.solve(np.geomspace(1e5, 3e7, 400))
-res.z_in(0)                   # input impedance of coil 0 (coil 1 open)
-res.effective_inductance(0)   # Im Z / ω
-res.transfer_impedance(1, 0)  # Z21: open-circuit V at coil 1 per ampere into coil 0
-res.loaded_voltage(50.0)      # V at coil 1 across 50 Ω per ampere into coil 0
-net.srf()                     # first parallel resonance at port 0 [Hz]
-net.resonance()               # Resonance(freq, q, r_parallel); Q includes dielectric loss
-```
-
-* **Topology:** every turn is a branch `R + jωL`. The branches are coupled through the full
-  turn-to-turn inductance matrix and through the Maxwell capacitance matrix between turns,
-  mapped onto the winding nodes.
-* **Other ports:** `ports=[Port(...), ...]` defines any fixture.
-* **Diagnostics:** `coupling="magnetic"` or `"electric"` keeps only one coupling path between
-  coils.
-* **`coilcal.vna`:** Z→S conversion, series- and shunt-thru fixtures (`thru_network`), and
-  currents driven by a source power (`driven_turn_currents`).
-
-### Insulated wire pair (2-D)
-
-```python
-from coilcal.wirepair import InsulatedWire, pair_capacitance
-
-w = InsulatedWire(1e-3, 1.5e-3, Dielectric(2.1, 2e-4))   # Ø1 mm in Ø1.5 mm PTFE
-r = pair_capacitance(w, spacing=1.5e-3)                  # sleeves touching
-r.capacitance, r.tan_delta                               # 44.4 pF/m, effective tanδ
-```
-
-* **What it is:** a stand-alone calculator for C′ between two long parallel wires with
-  dielectric sleeves in air. It is not used by the coil model.
-* **As a transmission line:** using one wire as the forward conductor and the other as the
-  return is the same differential mode the calculation assumes. So
-  Z0 = 1/(c₀√(C′·C′_air)) is what you would measure.
-
-### Enums and typing
-
-* **Mode-like arguments are `StrEnum`s** in `coilcal.types`: `Grounding`, `Coupling`,
-  `FieldModel`, `MutualMethod`, `ThruMode`, `TerminalEnd`.
-* **Plain strings such as `"end"` are accepted but validated,** so a typo raises `ValueError`.
-* **The package is type-checked:** `uv run mypy`.
-
-## GUI (`uv run coilcal-gui`)
-
-**Left panel:**
-* **Each coil:** geometry, terminals, and insulation/former materials. Each material has a
-  preset plus editable εr and tan δ.
-* **Placement of B:** a gap measured either edge-to-edge or centre-to-centre, plus a lateral
-  offset.
-* **VNA setup:** A on P1 with B on P2, or one coil series-thru or shunt-thru. Also Z0 and
-  the drive level, given as source power in dBm or as the peak current into port 1 at the
-  view frequency (the summary then shows the power that current needs).
-* **Analysis settings:** sweep range, view frequency, B's load, R factor and coupling paths.
-
-**Tabs:**
-
-| tab | shows |
-|---|---|
-| Cross-section | wires at true size and pitch on the former wall; fill = turn current or voltage for the VNA drive |
-| Side view | \|B\| map and field lines in the x–z plane for the VNA drive |
-| Bz profiles | in-phase Bz along the axis and across at a chosen height; dotted = uniform-current (quasi-DC) shape |
-| Impedance | Z_in of each coil (other open) vs the quasi-DC R + jωL; L_eff/L_DC |
-| Transfer A→B | Z21 vs jωM, and the voltage into the chosen load |
-| VNA | S-parameters (dB, phase, Smith) of the chosen setup |
-| Turn currents | current per turn and voltage per node |
-| Wire pair C | the 2-D insulated-pair calculator, with field map, C′ vs gap, and Z0 / velocity factor |
-
-**Summary panel, per coil:**
-
-| quantity | meaning |
-|---|---|
-| L_DC | static inductance |
-| L_eff, X/R | from the network at the view frequency; hidden near or above any resonance of the system, where they stop meaning inductance or Q |
-| Q_L = ωL_DC/R_ac | copper-only Q, valid well below resonance |
-| f_SRF and Q_SRF | resonance of the coil alone; Q includes conductor and dielectric loss |
-| f_res | the same resonance with the other coil present but open (shown when it differs) |
-| f_SRF without dielectrics | the same coil with vacuum insulation and no former |
-| Medhurst SRF | the empirical estimate, for comparison |
-
-Warnings flag a view frequency near a resonance, a tight pitch with no proximity correction
-(R factor = 1), and l/D outside Medhurst's fitted range.
-
-## Browser app
-
-The same app, running in the browser with no server: the model is ported to Rust and compiled
-to WebAssembly, and the interface is a Svelte page with every plot of the Qt GUI.
-
-Instead of one tab at a time it is a dashboard: the key numbers stay on top, and a geometry
-or field picture, a frequency sweep, a snapshot at the view frequency and the full table
-(one column per coil) are visible together. Both coils are entered side by side. A click in
-a sweep plot sets the view frequency; the side view reads |B| under the pointer, and a click
-there moves the height of the Bz(x) cut. Each panel folds away by its heading or expands to
-the whole results area (Escape restores). The wire-pair calculator is a separate mode.
-
-```bash
-cd web && pnpm install && pnpm dev   # needs the Rust toolchain in rust/rust-toolchain.toml
-```
-
-* **Python stays the reference.** `tests/port/` runs every Rust kernel and the whole app
-  computation against the Python code (agreement 1e-16 to 1e-10, each tolerance justified by
-  the conditioning in its test). They need cargo and Node and skip otherwise.
-* **Speed:** the default GUI case computes in about 0.3 s in the browser (Python: 0.5 s); the
-  capacitance solve is 2.5–4× faster than the Python code under Pyodide
-  (`tests/port/bench.py --pyodide`).
 
 ## Models
 
@@ -183,6 +57,7 @@ cd web && pnpm install && pnpm dev   # needs the Rust toolchain in rust/rust-too
 Sign convention: positive current circulates CCW about the coil's local +z axis. M > 0 when
 positive currents aid each other; flipping a coil by 180° flips the sign of M.
 
+
 ## Validation (tests)
 
 | model | checked against | agreement |
@@ -195,7 +70,7 @@ positive currents aid each other; flipping a coil by 180° flips the sign of M.
 | capacitance, bare wire | torus formula | 1e-3 |
 | capacitance, bare wire | two-wire line | 1e-3 |
 | insulated turns of a 10 m-radius coil | exact 2-D insulated pair, incl. touching turns | 2e-3 |
-| former + wires | independent 2-D panel BEM (`tests/_bem2d.py`) | 0.1–0.5% |
+| former + wires | independent 2-D panel BEM (`python/tests/_bem2d.py`) | 0.1–0.5% |
 | network at low frequency | static L, M, R | 1e-6 |
 | network | reciprocity | — |
 | Q_SRF | f0 / (−3 dB bandwidth) | 2% |
@@ -208,6 +83,7 @@ positive currents aid each other; flipping a coil by 180° flips the sign of M.
 
 Relative comparisons use `pytest.approx(..., rel=..., abs=0)`. Without `abs=0`, the default
 absolute tolerance of 1e-12 swamps pF-scale values.
+
 
 ## Typical numbers and caveats (150 mm former, 1 mm wire, 2 mm pitch, end grounded)
 
@@ -236,27 +112,65 @@ absolute tolerance of 1e-12 swamps pF-scale values.
 * **Speed:** close-wound coils with many turns are slow, about 30 s for 100 turns. Results
   are cached per geometry.
 
-## Layout
 
-```
-src/coilcal/
-  geometry.py     SolenoidCoil, Former
-  materials.py    Dielectric, Material presets
-  types.py        StrEnums, Port, array type aliases
-  loops.py        ring/filament kernels: mutual inductance, vector potential, skin effect
-  field.py        magpylib models, on-axis formulas
-  inductance.py   self-inductance and the Nagaoka/Rosa/Wheeler checks, R_ac
-  mutual.py       mutual inductance, coupling, EMF
-  capacitance.py  turn capacitance matrix (CSM + sleeve DtN + former BEM), cached
-  circuit.py      CoilNetwork (MNA), NetworkResult, Resonance
-  vna.py          S-parameters, thru fixtures, source drive
-  srf.py          Medhurst estimates, quasi-static validity report
-  wirepair.py     2-D insulated wire pair
-  gui/            Qt app: model.py (pure compute), plots.py, richtext.py, pair*.py, window.py
-tests/            pytest; _bem2d.py is the independent 2-D BEM reference
-  port/           Rust port against the Python reference (needs cargo and Node)
-examples/         demo.py (CLI, writes examples/out/), demo.ipynb
-scripts/          affected.py: run only the checks a change affects
-rust/             Rust port: crates/core (model + app layer), check (test driver), web (WASM)
-web/              browser app (Svelte 5, Vite, TypeScript)
-```
+## Acknowledgements and references
+
+**Inspiration.** This project was inspired by **Coil64** and its predecessor **Coil32**,
+the coil calculators of the coil32.net project: <https://coil32.net>, source at
+<https://github.com/radioacoustick/Coil64> (GPL-3.0). coilcal borrows their way of
+describing a single-layer coil, and uses the same Nagaoka/Rosa current-sheet inductance as a
+cross-check of its own. No Coil64 code is used.
+
+**Libraries.**
+
+* The Python reference is built on [NumPy](https://numpy.org), [SciPy](https://scipy.org),
+  [Magpylib](https://magpylib.readthedocs.io) (field of the ring and helix models, and an
+  independent check of the mutual inductance), [Matplotlib](https://matplotlib.org) and
+  [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/).
+* The browser app is built on [Svelte](https://svelte.dev), [uPlot](https://github.com/leeoniya/uPlot),
+  [KaTeX](https://katex.org) and [Vite](https://vite.dev); the Rust port uses
+  [`complex-bessel`](https://github.com/elgar328/complex-bessel) (a port of Amos' Bessel
+  package), `num-complex` and `libm`.
+* Code ported from other projects: the loop-field formula of Magpylib
+  (`web/rust/crates/core/src/field.rs`), and the Cephes elliptic integrals (via SciPy's
+  `xsf`) and SciPy's `brentq` (`special.rs`, `circuit.rs`). Their licences are reproduced in
+  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+**Methods and papers.**
+
+* J. C. Maxwell, *A Treatise on Electricity and Magnetism*, vol. 2 (1873), art. 701: mutual
+  inductance of two coaxial circles.
+* H. Nagaoka, "The inductance coefficients of solenoids", *J. Coll. Sci. Imp. Univ. Tokyo*
+  27 (1909): the current-sheet coefficient.
+* E. B. Rosa, "Calculation of the self-inductance of single-layer coils", *Bull. Bureau of
+  Standards* 2 (1906) 161–187; E. B. Rosa and F. W. Grover, "Formulas and tables for the
+  calculation of mutual and self-inductance", *Bull. Bureau of Standards* 8 (1912): the
+  round-wire corrections.
+* D. W. Knight, "An introduction to the art of solenoid inductance calculation with emphasis
+  on radio-frequency applications" (2016), g3ynh.info: the fit to Rosa's mutual-correction
+  table.
+* H. A. Wheeler, "Simple inductance formulas for radio coils", *Proc. IRE* 16 (1928)
+  1398–1400.
+* R. G. Medhurst, "H.F. resistance and self-capacitance of single-layer solenoids",
+  *Wireless Engineer* 24 (1947) 35–43 and 80–92: the empirical self-capacitance, shown for
+  comparison only.
+* H. Singer, H. Steinbigler and P. Weiss, "A charge simulation method for the calculation of
+  high voltage fields", *IEEE Trans. Power Apparatus and Systems* PAS-93 (1974) 1660–1668.
+* C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+  analysis", *IEEE Trans. Circuits and Systems* 22 (1975) 504–509.
+* M. Ortner, P. Leitner and F. Slanovc, "Numerically stable and computationally efficient
+  expression for the magnetic field of a current loop", *Magnetism* 3 (2023) 11–31; and
+  M. Ortner and L. G. Coliado Bandeira, "Magpylib: a free Python package for magnetic field
+  computation", *SoftwareX* 11 (2020) 100466.
+* R. Bulirsch, "Numerical calculation of elliptic integrals and elliptic functions. III",
+  *Numer. Math.* 13 (1969) 305–315: the `cel` function.
+* D. E. Amos, "Algorithm 644: a portable package for Bessel functions of a complex argument
+  and nonnegative order", *ACM Trans. Math. Software* 12 (1986) 265–273.
+* S. L. Moshier, Cephes Math Library, release 2.8 (2000); R. P. Brent, *Algorithms for
+  Minimization without Derivatives* (1973): the root finder behind `brentq`.
+
+## Licence
+
+[MIT](LICENSE). Third-party licences: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+The results are model predictions with the limits listed above; check them against a
+measurement before relying on them.
