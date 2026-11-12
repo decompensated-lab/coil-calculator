@@ -9,3 +9,5 @@ build/
 *.egg-info/
 examples/out/
 .claude/settings.local.json
+rust/target/
+node_modules/

@@ -1,0 +1,10 @@
+[package]
+name = "coilcal-core"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+complex-bessel = "=0.3.0"
+num-complex = { version = "=0.4.6", default-features = false }
+libm = "=0.2.16"
