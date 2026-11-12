@@ -9,11 +9,14 @@
     tips,
     material = $bindable(),
     value = $bindable(),
+    onpreset,
   }: {
     label: string;
     tips: [string, string, string];
     material: Material;
     value: Dielectric;
+    /** Called after a preset was picked. */
+    onpreset?: () => void;
   } = $props();
 
   const names = Object.keys(MATERIALS) as Material[];
@@ -21,6 +24,7 @@
   function preset() {
     const d = MATERIALS[material];
     if (d) value = { ...d };
+    onpreset?.();
   }
 
   function manual() {

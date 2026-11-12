@@ -149,8 +149,60 @@ export function flatten(p: Params): Record<string, number> {
   return out;
 }
 
-export function encode(p: Params): Uint8Array {
-  const values = Object.entries(flatten(p));
+// ---- the wire-pair calculator (kind 1; coilcal/gui/pair.py PairParams) -------------------
+
+export const SPACING_REFS = ['insulation surface gap', 'centre-to-centre'] as const;
+export type SpacingRef = (typeof SPACING_REFS)[number];
+
+export interface WireParams {
+  conductor_d_mm: number;
+  /** Outer Ø over the insulation (= conductor Ø for bare wire). */
+  insulation_d_mm: number;
+  material: Material;
+  insulation: Dielectric;
+}
+
+export interface PairParams {
+  w1: WireParams;
+  w2: WireParams;
+  /** Wire 2 identical to wire 1. */
+  same: boolean;
+  spacing_ref: SpacingRef;
+  spacing_mm: number;
+}
+
+export function defaultWire(): WireParams {
+  return { conductor_d_mm: 1.0, insulation_d_mm: 1.5, material: 'PTFE', insulation: preset('PTFE') };
+}
+
+export function defaultPair(): PairParams {
+  return {
+    w1: defaultWire(),
+    w2: defaultWire(),
+    same: true,
+    spacing_ref: 'insulation surface gap',
+    spacing_mm: 0.0,
+  };
+}
+
+export function flattenPair(p: PairParams): Record<string, number> {
+  const num = (v: number | null | undefined) => (typeof v === 'number' ? v : NaN);
+  const out: Record<string, number> = { kind: 1 };
+  for (const [k, w] of [['w1', p.w1], ['w2', p.w2]] as const) {
+    out[`${k}.conductor_d_mm`] = num(w.conductor_d_mm);
+    out[`${k}.insulation_d_mm`] = num(w.insulation_d_mm);
+    out[`${k}.eps_r`] = num(w.insulation.eps_r);
+    out[`${k}.tan_delta`] = num(w.insulation.tan_delta);
+  }
+  out.same = p.same ? 1 : 0;
+  out.spacing_ref = SPACING_REFS.indexOf(p.spacing_ref);
+  out.spacing_mm = num(p.spacing_mm);
+  return out;
+}
+
+/** Request bytes for flattened parameters (`flatten` or `flattenPair`). */
+export function encode(flat: Record<string, number>): Uint8Array {
+  const values = Object.entries(flat);
   const utf8 = new TextEncoder();
   const names = values.map(([n]) => utf8.encode(n));
   const size = 4 + names.reduce((s, n) => s + 4 + n.length + 8, 0);

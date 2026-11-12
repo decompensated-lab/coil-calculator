@@ -1,6 +1,7 @@
-// Runs the Rust/WASM model off the main thread: {id, params} in, {id, resp, ms} out.
+// Runs the Rust/WASM model off the main thread: {id, values} in (flattened parameters),
+// {id, resp, ms} out.
 import wasmUrl from './coilcal.wasm?url';
-import { type Exports, type Params, callWasm, decode, encode } from './protocol';
+import { type Exports, callWasm, decode, encode } from './protocol';
 
 const scope = self as unknown as Worker;
 let module: Promise<Exports> | null = null;
@@ -11,13 +12,13 @@ async function load(): Promise<Exports> {
   return instance.exports as unknown as Exports;
 }
 
-scope.onmessage = async (e: MessageEvent<{ id: number; params: Params }>) => {
-  const { id, params } = e.data;
+scope.onmessage = async (e: MessageEvent<{ id: number; values: Record<string, number> }>) => {
+  const { id, values } = e.data;
   try {
     module ??= load();
     const ex = await module;
     const t0 = performance.now();
-    const resp = decode(callWasm(ex, encode(params)));
+    const resp = decode(callWasm(ex, encode(values)));
     const ms = performance.now() - t0;
     const transfer = resp.ok
       ? Object.values(resp.raw).flatMap((v) => ('data' in v ? [v.data.buffer] : []))

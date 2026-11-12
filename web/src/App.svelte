@@ -1,33 +1,50 @@
 <script lang="ts">
+  import BzProfiles from './lib/BzProfiles.svelte';
   import Choice from './lib/Choice.svelte';
   import CoilForm from './lib/CoilForm.svelte';
   import { Computer } from './lib/compute.svelte';
-  import BzProfiles from './lib/BzProfiles.svelte';
   import CrossSection, { type Fill } from './lib/CrossSection.svelte';
   import { TAB_TIPS } from './lib/help';
   import ImpedancePlot from './lib/ImpedancePlot.svelte';
   import Num from './lib/Num.svelte';
-  import { COUPLINGS, GAP_REFS, VNA_SETUPS, defaultParams } from './lib/protocol';
-  import Summary from './lib/Summary.svelte';
+  import PairForm from './lib/PairForm.svelte';
+  import PairPlot from './lib/PairPlot.svelte';
+  import PairSummary from './lib/PairSummary.svelte';
+  import {
+    COUPLINGS, GAP_REFS, VNA_SETUPS, defaultPair, defaultParams, flatten, flattenPair,
+  } from './lib/protocol';
+  import { pairView, view } from './lib/results';
   import SideView from './lib/SideView.svelte';
+  import Summary from './lib/Summary.svelte';
   import Tabs from './lib/Tabs.svelte';
   import TransferPlot from './lib/TransferPlot.svelte';
   import TurnCurrents from './lib/TurnCurrents.svelte';
   import VnaPlot from './lib/VnaPlot.svelte';
 
+  const PAIR_TAB = 'Wire pair C';
   const TABS = ['Cross-section', 'Side view', 'Bz profiles', 'Impedance', 'Transfer A→B', 'VNA',
-    'Turn currents'] as const;
+    'Turn currents', PAIR_TAB] as const;
   const FILLS: Fill[] = ['|I|', '|V|', 'none'];
   let tab: string = $state('Cross-section');
   let fill: Fill = $state('|I|');
 
   const params = $state(defaultParams());
-  const computer = new Computer();
+  let pair = $state(defaultPair());
+  const computer = new Computer(flatten, view);
+  const pairComputer = new Computer(flattenPair, pairView);
+  // the wire-pair tab is stand-alone: it brings its own inputs and summary
+  const onPair = $derived(tab === PAIR_TAB);
+  const active = $derived(onPair ? pairComputer : computer);
 
-  // recompute shortly after the last edit (the worker keeps only the newest request)
+  // recompute shortly after the last edit (each worker keeps only the newest request)
   $effect(() => {
     const p = $state.snapshot(params);
     const t = setTimeout(() => computer.request(p), 120);
+    return () => clearTimeout(t);
+  });
+  $effect(() => {
+    const p = $state.snapshot(pair);
+    const t = setTimeout(() => pairComputer.request(p), 120);
     return () => clearTimeout(t);
   });
 </script>
@@ -35,6 +52,9 @@
 <div class="app">
   <aside>
     <h1>coilcal <span>turn-level coil model</span></h1>
+    {#if onPair}
+      <PairForm bind:pair coilA={params.a} />
+    {:else}
     <fieldset>
       <legend>Coil A (driven)</legend>
       <CoilForm bind:coil={params.a} />
@@ -70,25 +90,28 @@
         options={COUPLINGS} />
       <Num label="Bz(x) at z" tip="x_line_z" bind:value={params.x_line_z_mm} unit="mm" step={1} />
     </fieldset>
-    <p class={["status", { error: computer.error }]} aria-live="polite">
-      {#if computer.error}
-        {computer.error}
-      {:else if computer.busy}
+    {/if}
+    <p class={['status', { error: active.error }]} aria-live="polite">
+      {#if active.error}
+        {active.error}
+      {:else if active.busy}
         computing…
-      {:else if computer.result}
-        computed in {computer.ms.toFixed(0)} ms
+      {:else if active.result}
+        computed in {active.ms.toFixed(0)} ms
       {/if}
     </p>
   </aside>
 
   <main>
-    {#if computer.error}
-      <p class="banner" role="alert">{computer.error}</p>
+    {#if active.error}
+      <p class="banner" role="alert">{active.error}</p>
     {/if}
-    {#if computer.result}
-      {@const r = computer.result}
-      <Tabs tabs={TABS} bind:selected={tab} label="Results" tips={TAB_TIPS}>
-        {#snippet panel()}
+    <Tabs tabs={TABS} bind:selected={tab} label="Results" tips={TAB_TIPS}>
+      {#snippet panel()}
+        {#if onPair}
+          {#if pairComputer.result}<PairPlot r={pairComputer.result} />{/if}
+        {:else if computer.result}
+          {@const r = computer.result}
           {#if tab === 'Cross-section'}
             <CrossSection {r} {fill} />
           {:else if tab === 'Side view'}
@@ -104,13 +127,19 @@
           {:else if tab === 'Turn currents'}
             <TurnCurrents {r} />
           {/if}
-        {/snippet}
-      </Tabs>
-      <section class={["summary", { stale: computer.error || computer.busy }]}>
+        {:else if !computer.error}
+          <p class="muted">Loading the model…</p>
+        {/if}
+      {/snippet}
+    </Tabs>
+    {#if onPair && pairComputer.result}
+      <section class={['summary', { stale: pairComputer.error || pairComputer.busy }]}>
+        <PairSummary r={pairComputer.result} />
+      </section>
+    {:else if !onPair && computer.result}
+      <section class={['summary', { stale: computer.error || computer.busy }]}>
         <Summary r={computer.result} />
       </section>
-    {:else if !computer.error}
-      <p class="muted">Loading the model…</p>
     {/if}
   </main>
 </div>
@@ -135,16 +164,6 @@
     font-weight: 400;
     color: var(--muted);
     font-size: 0.85rem;
-  }
-  fieldset {
-    margin: 0 0 10px;
-    padding: 6px 10px 8px;
-    border: 1px solid var(--grid);
-    border-radius: 6px;
-  }
-  legend {
-    font-weight: 600;
-    padding: 0 4px;
   }
   main {
     overflow-y: auto;

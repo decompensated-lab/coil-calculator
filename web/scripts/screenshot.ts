@@ -56,7 +56,7 @@ try {
   let state = '';
   for (let i = 0; i < 100 && !state; i++, await sleep(200)) state = await evaluate(ready);
   if (script) {
-    await evaluate(script);
+    await evaluate(`(async () => { ${script} })()`); // allows await in the script
     await sleep(500); // let the edit's recompute start
     state = '';
     for (let i = 0; i < 100 && !state; i++, await sleep(200)) state = await evaluate(ready);

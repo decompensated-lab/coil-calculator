@@ -66,12 +66,14 @@ impl WirePair {
             if rk[k] < w.b {
                 let r = rk[k];
                 let mut harm = c64::new(0.0, 0.0);
+                // powers by recurrence: u^n = (a/b)^(2n), (r/b)^n, (b/r)^n, e^(inθ)
+                let (u1, out1, in1) = ((w.a / w.b).powi(2), r / w.b, w.b / r);
+                let e1 = c64::from_polar(1.0, th[k]);
+                let (mut u, mut out_n, mut in_n, mut e) = (u1, out1, in1, e1);
                 for i in 0..nt {
-                    let n = (i + 1) as f64;
-                    let u = (w.a / w.b).powf(2.0 * n);
                     let amp = 2.0 * self.dreg[k][i + 1] / ((1.0 - u) + w.eps * (1.0 + u));
-                    let radial = (r / w.b).powf(n) - u * (w.b / r).powf(n);
-                    harm += amp * radial * (th[k] * n).cos();
+                    harm += amp * ((out_n - u * in_n) * e.re);
+                    (u, out_n, in_n, e) = (u * u1, out_n * out1, in_n * in1, e * e1);
                 }
                 return self.v[k] - qs[k] / w.eps * (r / w.a).ln() + harm;
             }
@@ -80,10 +82,13 @@ impl WirePair {
         let mut out = c64::new(0.0, 0.0);
         for (k, w) in self.wires.iter().enumerate() {
             let r = rk[k].max(w.b);
+            // cos(nθ)·(b/r)^n = Re(z^n) with z = (b/r)·e^(iθ), powers by recurrence
+            let z1 = c64::from_polar(w.b / r, th[k]);
+            let mut z = z1;
             let mut sum = c64::new(0.0, 0.0);
-            for i in 0..nt {
-                let n = (i + 1) as f64;
-                sum += self.coef[k][i] * (th[k] * n).cos() * (w.b / r).powf(n);
+            for c in &self.coef[k] {
+                sum += c * z.re;
+                z *= z1;
             }
             out += -qs[k] * r.ln() + sum;
         }

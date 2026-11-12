@@ -10,7 +10,7 @@ export const ORANGE = '#eb6834';
 export const AQUA = '#1baf7a';
 export const COIL_COLORS = [BLUE, ORANGE];
 
-/** A vertical (`x`) or horizontal (`y`) line, or a vertical band `x..x1`. */
+/** A vertical (`x`) or horizontal (`y`) line, a vertical band `x..x1`, or a point (`x`, `y`). */
 export interface Mark {
   x?: number;
   x1?: number;
@@ -60,7 +60,15 @@ export function charts(panels: Panel[], syncKey?: string) {
           ctx.setLineDash((m.dash ?? []).map((d) => d * devicePixelRatio));
           ctx.lineWidth = devicePixelRatio;
           ctx.globalAlpha = m.alpha ?? 1;
-          if (m.x != null && m.x1 != null) {
+          if (m.x != null && m.y != null) {
+            const [px, py] = [u.valToPos(m.x, 'x', true), u.valToPos(m.y, 'y', true)];
+            ctx.beginPath();
+            ctx.arc(px, py, 5 * devicePixelRatio, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = getComputedStyle(node).getPropertyValue('--bg').trim();
+            ctx.lineWidth = 2 * devicePixelRatio;
+            ctx.stroke();
+          } else if (m.x != null && m.x1 != null) {
             const [a, b] = [u.valToPos(m.x, 'x', true), u.valToPos(m.x1, 'x', true)];
             const lo = Math.max(Math.min(a, b), bbox.left);
             const hi = Math.min(Math.max(a, b), bbox.left + bbox.width);

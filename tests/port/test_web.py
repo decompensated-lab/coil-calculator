@@ -12,9 +12,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from test_app import flat
+from test_app import flat, flat_pair
 
 from coilcal.gui import model as gm
+from coilcal.gui import pair as gp
 
 ROOT = Path(__file__).parents[2]
 WASM = ROOT / "rust/target/wasm32-unknown-unknown/release/coilcal_web.wasm"
@@ -42,6 +43,7 @@ def smoke():
 
 def test_defaults_match_the_gui(smoke):
     assert smoke["params"] == flat(gm.Params())
+    assert smoke["pairParams"] == flat_pair(gp.PairParams())
 
 
 def test_round_trip(smoke):
@@ -53,6 +55,8 @@ def test_round_trip(smoke):
     assert int(smoke["scalars"][0]) == r.i_view
     assert smoke["warnings"] == r.warnings
     assert smoke["error"] == "enable coil B for the A/B coupling setup"
+    c = gp.compute_pair(gp.PairParams()).res.c_complex
+    assert complex(*smoke["pairC"]) == pytest.approx(c, rel=1e-12, abs=0)
     print(
         f"default compute in Node: {smoke['secs']:.3f} s, cached geometry {smoke['secsWarm']:.3f} s"
     )

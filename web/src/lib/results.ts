@@ -1,5 +1,5 @@
 // Typed view of the arrays app::call returns, plus complex and number-formatting helpers.
-import { type Arr, type Params, type Raw, VNA_SETUPS } from './protocol';
+import { type Arr, type PairParams, type Params, type Raw, VNA_SETUPS } from './protocol';
 
 export interface Complex {
   re: number;
@@ -141,3 +141,36 @@ export function si(x: number, unit: string, digits = 4): string {
 
 /** `f"{x:+.1%}"`. */
 export const pct = (x: number) => `${x >= 0 ? '+' : ''}${(100 * x).toFixed(1)}%`;
+
+/** Typed view of the wire-pair response (rust/crates/core/src/pair.rs). */
+export function pairView(raw: Raw, params: PairParams) {
+  const arr = (k: string) => raw[k] as Arr;
+  const real = (k: string) => arr(k).data;
+  const [nTerms, converged, spacing, cBare, cUniform, cEff] = real('scalars');
+  const w = real('wires');
+  const wire = (k: number) => ({ a: w[4 * k], b: w[4 * k + 1] });
+  return {
+    params,
+    /** C' − jC'' [F/m]. */
+    c: at(arr('c'), 0),
+    /** Conductor potentials [V] for 1 V across the pair. */
+    v: [at(arr('v'), 0), at(arr('v'), 1)],
+    wires: [wire(0), wire(1)],
+    nTerms,
+    converged: converged === 1,
+    spacing,
+    cBare,
+    cUniform,
+    cEff,
+    gap: real('gap'),
+    sweepExact: real('sweep_exact'),
+    sweepBare: real('sweep_bare'),
+    sweepUniform: real('sweep_uniform'),
+    sweepEff: real('sweep_eff'),
+    fieldX: real('field_x'),
+    fieldY: real('field_y'),
+    /** (ny, nx) potential [V]. */
+    phi: real('phi'),
+  };
+}
+export type PairResults = ReturnType<typeof pairView>;

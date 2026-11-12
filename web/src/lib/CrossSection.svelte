@@ -66,7 +66,7 @@
 {#each v.strips as s (s.name)}
   <p class="strip-title">{s.title}</p>
   <Frame x0={s.x0} x1={s.x1} y0={s.y0} y1={s.y1} xLabel="position along coil A axis [mm]"
-    yLabel="r [mm]" label="Cross-section of coil {s.name}'s winding" maxHeight="40vh">
+    yLabel="r [mm]" label="Cross-section of coil {s.name}'s winding" maxHeight={0.4}>
     {#if s.c.former}
       {@const half = (s.c.length / 2 + s.c.former.overhang) * 1e3}
       <rect class="former" x={s.c.position[2] * 1e3 - half} y={s.rf - s.c.former.wall * 1e3}

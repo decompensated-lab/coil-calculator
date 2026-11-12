@@ -20,7 +20,7 @@
     yLabel,
     colorbar,
     label,
-    maxHeight = '70vh',
+    maxHeight = 0.7,
     children,
   }: {
     x0: number;
@@ -32,27 +32,45 @@
     colorbar?: ColorBar;
     /** Accessible description of the plot. */
     label: string;
-    maxHeight?: string;
+    /** Height limit as a fraction of the viewport height. */
+    maxHeight?: number;
     children: Snippet;
   } = $props();
 
   const uid = $props.id();
   const W = $derived(x1 - x0);
   const H = $derived(y1 - y0);
-  const f = $derived(Math.max(W, 0.6 * H) / 56); // font size in data units
+  // font size in data units that renders at FONT_PX: the drawing scales with the element,
+  // which is limited by its width and by maxHeight; margins grow with f, so iterate
+  const FONT_PX = 12;
+  let width = $state(0);
+  let innerHeight = $state(0);
+  const kx = $derived(4.2 + (colorbar ? 7.5 : 1.2)); // left + right margin / f
+  const ky = 4.0; // top + bottom margin / f
+  const f = $derived.by(() => {
+    let f = Math.max(W, 0.6 * H) / 56;
+    if (!width) return f;
+    for (let i = 0; i < 4; i++) {
+      const scale = Math.min(width / (W + kx * f), (maxHeight * innerHeight) / (H + ky * f));
+      f = FONT_PX / scale;
+    }
+    return f;
+  });
   const ml = $derived(4.2 * f);
   const mb = $derived(3.2 * f);
   const mt = $derived(0.8 * f);
-  const mr = $derived(colorbar ? 7.5 * f : 1.2 * f);
+  const mr = $derived((kx - 4.2) * f);
   const xt = $derived(ticks(x0, x1, Math.max(3, Math.round(W / (6 * f)))));
   const yt = $derived(ticks(y0, y1, Math.max(2, Math.round(H / (3 * f)))));
   const fmt = (v: number) => Number(v.toPrecision(6)).toString();
   const stops = Array.from({ length: 9 }, (_, i) => i / 8);
 </script>
 
+<svelte:window bind:innerHeight />
 <svg
+  bind:clientWidth={width}
   viewBox="{x0 - ml} {-y1 - mt} {W + ml + mr} {H + mt + mb}"
-  style:max-height={maxHeight}
+  style:max-height="{maxHeight * 100}vh"
   role="img"
   aria-label={label}
   font-size={f}
