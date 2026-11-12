@@ -42,5 +42,5 @@
 {#if r.coils.length < 2}
   <p class="muted">Enable coil B for the transfer plot.</p>
 {:else}
-  <div class="chart" {@attach charts(panels(r), 'transfer', onview)}></div>
+  <div class="chart" {@attach charts(panels(r), { sync: 'transfer', onpick: onview })}></div>
 {/if}

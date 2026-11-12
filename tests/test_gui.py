@@ -88,6 +88,25 @@ def test_bz_profiles_match_static_at_low_frequency():
     assert r.bz_x[centre].real == pytest.approx(on_axis, rel=1e-3, abs=0)
 
 
+def test_current_drive_is_the_power_drive_rescaled():
+    from coilcal.gui.model import Drive
+
+    base = {"n_freq": 20, "f_view_mhz": 3.0}
+    for setup in (VnaSetup.PAIR, VnaSetup.A_SHUNT):
+        r = compute(Params(vna_setup=setup, drive=Drive.CURRENT, i_drive_a=0.25, **base))
+        assert abs(r.drive_port_i[r.i_view, 0]) == pytest.approx(0.25, rel=1e-12, abs=0)
+        assert "0.25 A" in r.drive_label
+        # the same source given as its power: every drive quantity agrees
+        ref = compute(Params(vna_setup=setup, p_dbm=r.p_dbm, **base))
+        assert r.v_plus == pytest.approx(ref.v_plus, rel=1e-12, abs=0)
+        for key in ("drive_turn_i", "drive_port_i", "drive_node_v", "field_b", "bz_z"):
+            got, want = getattr(r, key), getattr(ref, key)
+            assert np.abs(got - want).max() <= 1e-10 * np.abs(want).max(), key
+        assert np.array_equal(r.s, ref.s)  # S-parameters do not depend on the level
+    with pytest.raises(ValueError, match="must be positive"):
+        compute(Params(drive="port 1 current", i_drive_a=0.0, **base))
+
+
 def test_wire_pair_tab():
     from coilcal.gui.pair import PairParams, SpacingRef, WireParams, compute_pair, pair_summary_html
 

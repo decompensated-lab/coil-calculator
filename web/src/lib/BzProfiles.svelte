@@ -5,7 +5,7 @@
   import Num from './Num.svelte';
   import type { Arr } from './protocol';
   import { BLUE, COIL_COLORS, type Mark, type Panel, charts, coilName } from './plot';
-  import { type Results, at, g, mul, si } from './results';
+  import { type Results, at, g, mul, si, driveLabel } from './results';
 
   let { r, cutZ = $bindable() }: { r: Results; cutZ: number } = $props();
 
@@ -74,15 +74,15 @@
 </script>
 
 <h3 class="plot-title">
-  B<sub>z</sub> on the axis — {r.params.vna_setup}, {g(r.params.p_dbm, 6)} dBm, {si(r.fView, 'Hz')}
+  B<sub>z</sub> on the axis — {r.params.vna_setup}, {driveLabel(r)} at P1, {si(r.fView, 'Hz')}
   (quadrature part ≤ {(100 * v.quad).toFixed(1)}% of peak)
 </h3>
-<div class="chart" {@attach charts(v.panels.slice(0, 1))}></div>
+<div class="chart" {@attach charts(v.panels.slice(0, 1), { share: 0.45 })}></div>
 <div class="across">
   <h3 class="plot-title">B<sub>z</sub> across the coils</h3>
   <Num label="at z" tip="x_line_z" bind:value={cutZ} unit="mm" step={1} />
 </div>
-<div class="chart" {@attach charts(v.panels.slice(1))}></div>
+<div class="chart" {@attach charts(v.panels.slice(1), { share: 0.45 })}></div>
 
 <style>
   .across {

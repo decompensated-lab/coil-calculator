@@ -112,7 +112,7 @@
       sub: p.vna_setup,
       rows: [
         ...(['S_{11}', 'S_{21}', 'S_{22}'].map((s, j): Row => [s, `${db(sp[j])} dB`, `∠ ${deg(sp[j]).toFixed(1)}°`])),
-        ['V^{+}', si(r.vPlus, 'V'), `peak, ${g(p.p_dbm, 6)} dBm into ${g(p.z0, 6)} Ω`],
+        ['V^{+}', si(r.vPlus, 'V'), `peak, ${g(r.pDbm, 4)} dBm into ${g(p.z0, 6)} Ω`],
         ['|I_{P1}|', si(abs(at(r.drivePortI, 2 * i)), 'A'), 'peak'],
         ['|I_{P2}|', si(abs(at(r.drivePortI, 2 * i + 1)), 'A'), 'peak'],
         ['|B|_\\mathrm{max}', si(bMax, 'T'), 'in side-view plane'],

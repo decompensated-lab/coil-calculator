@@ -31,6 +31,8 @@ export const TIPS: Record<string, string> = {
   "vna_setup": "VNA configuration used by the VNA tab, side-view field, cross-section fill and turn-current plot:\n• A on P1, B on P2: each coil is a one-port (terminal setting decides which end is on the shield); S21 is the coupling.\n• series-thru: the coil sits between the centre conductors of P1 and P2 (good for high impedances).\n• shunt-thru: the coil goes from the joined P1/P2 centre line to ground (good for low impedances).\nIn the thru setups the coil is measured alone.",
   "z0": "Reference impedance of the VNA ports (also their source and load impedance).",
   "p_dbm": "Available source power at port 1. It sets the absolute currents and fields (incident peak voltage V+ = √(2·Z0·P)). All other ports are terminated in Z0.",
+  "drive": "How the drive level is given:\n• source power: the available power at port 1, as on a VNA.\n• port 1 current: the source is scaled so that the current into port 1 at the view frequency has the set peak value; the summary shows the power this needs.",
+  "i_drive": "Peak current into port 1 at the view frequency. In the 'A on P1, B on P2' and series-thru setups this is the current into the coil's terminal; in shunt-thru part of it goes into port 2's termination.",
   "pair_cond": "Diameter of the bare conductor.",
   "pair_ins": "Outer diameter over the insulation (Coil64's 'wire diameter with insulation'). Equal to the conductor Ø means bare wire.",
   "pair_material": "Insulation material preset: fills εr and tan δ with typical values around 1 MHz. Datasheet values vary, so edit εr / tan δ (the preset then shows 'custom').",

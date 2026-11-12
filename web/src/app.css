@@ -76,12 +76,19 @@ select {
 input[type="number"]:placeholder-shown {
   border-color: var(--error);
 }
-fieldset:disabled .row {
+fieldset:disabled .row,
+.row.off {
   opacity: 0.5;
 }
 .u-legend {
   color: var(--ink);
   font-size: 12px;
+}
+/* hover values keep their width, so the legend does not reflow under the moving cursor */
+.u-legend .u-value {
+  min-width: 7ch;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
 }
 .plot-title {
   margin: 0 0 4px;

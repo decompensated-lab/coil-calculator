@@ -91,6 +91,11 @@ export function view(raw: Raw, params: Params) {
     /** (F, 2) */
     drivePortI: arr('drive_port_i'),
     vPlus,
+    /** Available source power at port 1 [dBm]: as set, or what the set current needs. */
+    pDbm:
+      params.drive === 'source power'
+        ? params.p_dbm
+        : 10 * Math.log10(vPlus ** 2 / (2 * params.z0) / 1e-3),
     /** (F, T) turn currents and (F, Nn) node voltages for the VNA drive. */
     driveTurnI: arr('drive_turn_i'),
     driveNodeV: arr('drive_node_v'),
@@ -111,6 +116,10 @@ export function view(raw: Raw, params: Params) {
   };
 }
 export type Results = ReturnType<typeof view>;
+
+/** The drive level as it was set, for plot titles (`Results.drive_label`). */
+export const driveLabel = (r: Results) =>
+  r.params.drive === 'source power' ? `${g(r.params.p_dbm, 6)} dBm` : `${g(r.params.i_drive_a, 6)} A`;
 
 /** Coil `k` at the view frequency: input impedance (other coil open) and what follows. */
 export function coilAtView(r: Results, k: number) {
