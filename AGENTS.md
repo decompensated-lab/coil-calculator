@@ -11,13 +11,15 @@ numpy/scipy, magpylib, matplotlib, PySide6-Essentials. User-facing docs: `README
 uv sync                                   # install (respects the cooldown in pyproject.toml)
 uv run pytest -q                          # all tests, ~15 s; GUI tests run offscreen
 uv run pytest -q tests/test_dielectric.py -k former   # a focused subset
-uv run ruff check src tests examples      # lint (add --fix for safe fixes)
-uv run ruff format src tests examples     # format (line length 100)
+uv run ruff check src tests examples scripts   # lint (add --fix for safe fixes)
+uv run ruff format src tests examples scripts  # format (line length 100)
 uv run mypy                               # type check src/coilcal (disallow_untyped_defs)
 uv run python examples/demo.py            # CLI demo, writes examples/out/ (git-ignored)
 uv run coilcal-gui                        # the GUI (needs a display)
 QT_QPA_PLATFORM=offscreen uv run python script.py     # render GUI widgets headless
 
+uv run python scripts/affected.py         # only the checks/tests your changes affect (-n: plan)
+uv run python scripts/affected.py --base main         # ... for everything on the branch
 uv run pytest -q tests/port --port-backend native     # port tests against the native build
 cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 OPENBLAS_NUM_THREADS=1 uv run python tests/port/bench.py --pyodide   # port vs reference timings
@@ -28,7 +30,9 @@ cd web && pnpm check && pnpm build        # type-check (svelte-check) and produc
 cd web && node scripts/screenshot.ts http://localhost:5173/ out.png   # headless look (Chromium)
 ```
 
-Before calling a change done, run ruff (check and format), mypy, and pytest. All must pass.
+While iterating, `scripts/affected.py` runs only what a change touches (an import graph picks
+the Python tests). Before calling a change done, run ruff (check and format), mypy, and pytest.
+All must pass.
 If `rust/` changed, also run the cargo line above. If `web/` changed, run `pnpm check` and
 `pnpm build`, and look at a screenshot of the app (light and `DARK=1`).
 For GUI changes, also render the affected tab offscreen (`widget.grab().save(...)`) and look
@@ -49,6 +53,7 @@ at the image.
   * `help.py`: every tooltip and the F1 guide.
   * `widgets.py`, `window.py`, `pairtab.py`: Qt.
 * `tests/`: pytest. `_bem2d.py` is an independent 2-D BEM used only as a reference.
+* `scripts/affected.py`: maps changed files to the checks and tests they affect.
 * `rust/`: the WASM rewrite's numerics core (work in progress, see `PLAN.md` if present).
   `crates/core` holds the kernels, `crates/check` a stdin/stdout binary that `tests/port/`
   drives to compare every kernel with the Python reference (the WASM build runs under Node's
