@@ -1,8 +1,9 @@
 [project]
 name = "coilcal"
 version = "0.1.0"
-description = "Quasi-static field, inductance and mutual-inductance modelling of single-layer coils"
+description = "Turn-level models of single-layer coils: field, inductance, self-resonance, VNA view"
 readme = "README.md"
+license = "MIT"
 authors = [
     { name = "Ivan Galinskiy" }
 ]
@@ -15,6 +16,10 @@ dependencies = [
     "pyside6-essentials>=6.12.0",
     "scipy>=1.18.1",
 ]
+
+[project.urls]
+Repository = "https://github.com/ivan-galinskiy/coil-calculator"
+"Browser app" = "https://ivan-galinskiy.github.io/coil-calculator/"
 
 [project.scripts]
 coilcal-gui = "coilcal.gui:main"

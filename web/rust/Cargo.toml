@@ -4,6 +4,7 @@ members = ["crates/core", "crates/check", "crates/web"]
 
 [workspace.package]
 edition = "2024"
+license = "MIT"
 publish = false
 
 [profile.release]

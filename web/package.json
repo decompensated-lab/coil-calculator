@@ -1,11 +1,13 @@
 {
   "name": "coilcal-web",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "wasm": "cd rust && cargo build --release --quiet --target wasm32-unknown-unknown -p coilcal-web && cp target/wasm32-unknown-unknown/release/coilcal_web.wasm ../src/lib/coilcal.wasm",
     "dev": "pnpm wasm && vite",
-    "build": "pnpm wasm && vite build",
+    "build": "pnpm wasm && vite build && pnpm notices",
+    "notices": "cp ../LICENSE dist/LICENSE.txt && cp ../THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.txt",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
