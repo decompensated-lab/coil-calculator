@@ -1,4 +1,4 @@
-"""Step 2 of the re-plan: inductance, SRF estimates, mutual inductance and the ring field.
+"""Inductance, SRF estimates, mutual inductance and the ring field against the Rust port.
 
 References: ``coilcal.inductance``, ``coilcal.srf`` (the two estimates the app shows),
 ``coilcal.mutual`` (ring method) and magpylib's ``current.Circle`` exactly as

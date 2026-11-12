@@ -1,4 +1,5 @@
-"""Step 5: the app layer (``coilcal.gui.model.compute``) against ``app::call`` in Rust.
+"""The app layer against ``app::call`` in Rust: ``coilcal.gui.model.compute`` and the
+wire-pair calculator ``coilcal.gui.pair.compute_pair``.
 
 The request and response go through the same byte format the browser worker uses
 (``rust/crates/core/src/app.rs``), so this also checks that format.

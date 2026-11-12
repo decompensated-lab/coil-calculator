@@ -1,4 +1,4 @@
-"""K3: the port's dense LU against ``numpy.linalg.solve``.
+"""The port's dense LU against ``numpy.linalg.solve``.
 
 The solution difference is judged against cond(A)·ε (two backward-stable solvers with
 different pivot or summation order may differ by that much), the residual against numpy's own.

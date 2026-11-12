@@ -9,7 +9,7 @@ VNA S-parameters, and a Qt GUI. SI units throughout. Phasors are peak amplitudes
 ```bash
 uv sync                      # Python 3.12, deps pinned in uv.lock (7-day cooldown)
 uv run coilcal-gui           # Qt GUI (F1 = guide; hover any control for help)
-uv run pytest -q             # full test suite (~15 s; GUI tests run offscreen)
+uv run pytest -q             # full test suite (~25 s; GUI tests run offscreen)
 uv run python examples/demo.py --turns-a 10 --turns-b 5 --freq 5e6 --gap 0.05
 ```
 
@@ -142,6 +142,22 @@ r.capacitance, r.tan_delta                               # 44.4 pF/m, effective 
 Warnings flag a view frequency near a resonance, a tight pitch with no proximity correction
 (R factor = 1), and l/D outside Medhurst's fitted range.
 
+## Browser app (work in progress, branch `wasm-rewrite`)
+
+The same app, running in the browser with no server: the model is ported to Rust and compiled
+to WebAssembly, and the interface is a Svelte page with every tab of the Qt GUI.
+
+```bash
+cd web && pnpm install && pnpm dev   # needs the Rust toolchain in rust/rust-toolchain.toml
+```
+
+* **Python stays the reference.** `tests/port/` runs every Rust kernel and the whole app
+  computation against the Python code (agreement 1e-16 to 1e-10, each tolerance justified by
+  the conditioning in its test). They need cargo and Node and skip otherwise.
+* **Speed:** the default GUI case computes in about 0.3 s in the browser (Python: 0.5 s); the
+  capacitance solve is 2.5–4× faster than the Python code under Pyodide
+  (`tests/port/bench.py --pyodide`).
+
 ## Models
 
 | quantity | method |
@@ -230,5 +246,9 @@ src/coilcal/
   wirepair.py     2-D insulated wire pair
   gui/            Qt app: model.py (pure compute), plots.py, richtext.py, pair*.py, window.py
 tests/            pytest; _bem2d.py is the independent 2-D BEM reference
+  port/           Rust port against the Python reference (needs cargo and Node)
 examples/         demo.py (CLI, writes examples/out/), demo.ipynb
+scripts/          affected.py: run only the checks a change affects
+rust/             Rust port: crates/core (model + app layer), check (test driver), web (WASM)
+web/              browser app (Svelte 5, Vite, TypeScript)
 ```

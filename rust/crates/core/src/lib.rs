@@ -1,4 +1,5 @@
-//! Numerical kernels of coilcal, ported from the Python reference.
+//! Numerical kernels of coilcal, ported from the Python reference, and the app layer on top
+//! (`app` for the coil model, `pair` for the wire-pair calculator; both behind `app::call`).
 
 #[allow(non_camel_case_types)]
 pub type c64 = num_complex::Complex<f64>;

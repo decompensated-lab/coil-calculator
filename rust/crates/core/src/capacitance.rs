@@ -4,8 +4,9 @@
 //! quadrature, meshing decisions and system layout); see the Python module docstring for the
 //! method: charge simulation for the wires with the insulation sleeve eliminated by its
 //! per-harmonic Dirichlet-to-Neumann map, boundary elements for the former, and a thin-wire
-//! coupling between non-coaxial coils. The per-geometry result cache of the Python module is
-//! not ported; caching belongs to the caller.
+//! coupling between non-coaxial coils. [`capacitance_matrix`] is uncached (the benchmarks time
+//! it); [`capacitance_matrix_cached`] memoises per geometry like the Python module and is what
+//! the network uses.
 
 use crate::c64;
 use crate::geometry::{Coil, Vec3, apply, apply_t, dot, norm, sub};

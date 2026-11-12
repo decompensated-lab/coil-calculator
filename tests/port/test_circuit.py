@@ -1,4 +1,4 @@
-"""Step 4 of the re-plan: ``coilcal.circuit`` and ``coilcal.vna`` against their Rust port.
+"""``coilcal.circuit`` and ``coilcal.vna`` against their Rust port.
 
 Network results are compared per frequency, normwise (largest difference over the ports
 relative to the largest value), because near a resonance single entries pass through zero.

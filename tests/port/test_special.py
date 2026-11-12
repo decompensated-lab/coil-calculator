@@ -1,4 +1,4 @@
-"""K1, K2: special functions of the port against ``scipy.special``.
+"""Special functions of the port against ``scipy.special``.
 
 The elliptic integrals are a port of the same Cephes routines scipy uses, so they agree to the
 last bit except where the two ``log`` implementations differ: measured ellipk 0, ellipkm1 0,

@@ -1,4 +1,4 @@
-"""Step 1 of the re-plan: ``coilcal.capacitance`` against its Rust port.
+"""``coilcal.capacitance`` against its Rust port.
 
 The assembled system is compared row by row (entries relative to the row's largest; the DFT
 rows mix terms of very different size, so single entries can be tiny), the capacitance matrix

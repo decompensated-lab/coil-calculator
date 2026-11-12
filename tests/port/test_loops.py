@@ -1,12 +1,12 @@
-"""K4-K6: ``coilcal.loops`` against its Rust port.
+"""``coilcal.loops`` against its Rust port.
 
-Tolerances follow PLAN.md, except where the reference formula is ill-conditioned; there the
+Values agree to ``RTOL`` (1e-13 relative), except where the reference formula is ill-conditioned; there the
 bound is derived from the conditioning and was checked against an exact (50-digit series)
 value, which showed the *reference itself* is off by the same amount:
 
 * Just above ``_M_SERIES`` the bracket ``(1 - m/2) K - E = pi m^2/32 + ...`` cancels terms of
   size ``pi/2``, amplifying any difference in K, E by ``16/m^2`` (1.6e7 at m = 1e-3, i.e.
-  ~7 digits, not the 3 the plan assumed); reference-vs-exact is up to 2.8e-9 there. With the
+  ~7 digits); reference-vs-exact is up to 2.8e-9 there. With the
   ``ellip`` crate the port differed by up to 8.9e-9; since K and E are the same Cephes code as
   scipy's they agree exactly, but the bound ``1e-13 + 64 ε/m^2`` stays: it is what the formula
   guarantees, and bit-equality would hang on two ``log`` implementations agreeing.

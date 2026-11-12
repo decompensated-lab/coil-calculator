@@ -5,7 +5,7 @@
 //! back substitution. Pivots use `|re| + |im|` like LAPACK's `izamax`. The trailing update is a
 //! packed GEMM with an explicit f64x2 micro-kernel under WASM `simd128` (one f64x2 holds two
 //! reals or one complex) and a portable fallback elsewhere. It reaches the native 128-bit-SIMD
-//! floor for real matrices; see `tests/port/bench_solve.py` for the measurements.
+//! floor for real matrices; see `tests/port/bench.py` for the measurements.
 //!
 //! All matrices are row-major (numpy's C order).
 

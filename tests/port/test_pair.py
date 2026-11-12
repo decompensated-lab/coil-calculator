@@ -1,4 +1,4 @@
-"""Step 3 of the re-plan: ``coilcal.wirepair`` against its Rust port."""
+"""``coilcal.wirepair`` against its Rust port."""
 
 import numpy as np
 import pytest

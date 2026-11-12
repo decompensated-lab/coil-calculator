@@ -1,4 +1,4 @@
-"""Port benchmarks: the dense solve (PLAN.md, K3) and the whole capacitance matrix.
+"""Port benchmarks: the dense solve and the whole capacitance matrix.
 
 Solve:
 Captures the linear systems that ``numpy.linalg.solve`` sees in the reference (capacitance
