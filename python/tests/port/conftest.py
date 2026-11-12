@@ -21,6 +21,10 @@ import pytest
 
 RUST = Path(__file__).parents[3] / "web" / "rust"
 RUNNER = Path(__file__).with_name("run_wasi.mjs")
+# Node flags for the WASI runner. Fast API calls are off because V8 can crash (SIGSEGV in the
+# garbage collector) when a collection starts inside node:wasi's fast ``fd_write`` callback,
+# seen with Node 22.23; the port's results do not depend on it.
+NODE_FLAGS = ["--no-warnings", "--no-turbo-fast-api-calls"]
 WASM_TARGET = "wasm32-wasip1"
 
 Port = Callable[..., list[np.ndarray]]
@@ -112,7 +116,7 @@ def port(request: pytest.FixtureRequest) -> Iterator[Port]:
     subprocess.run(cmd, cwd=RUST, check=True)
     if backend == "wasm":
         wasm = RUST / "target" / WASM_TARGET / "release" / "coilcal-check.wasm"
-        proc = CheckProcess([node, "--no-warnings", str(RUNNER), str(wasm)])
+        proc = CheckProcess([node, *NODE_FLAGS, str(RUNNER), str(wasm)])
     else:
         proc = CheckProcess([str(RUST / "target" / "release" / "coilcal-check")])
     yield proc

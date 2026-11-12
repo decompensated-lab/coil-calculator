@@ -34,7 +34,7 @@ from unittest import mock
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
-from conftest import RUNNER, RUST, WASM_TARGET, CheckProcess, coil_table
+from conftest import NODE_FLAGS, RUNNER, RUST, WASM_TARGET, CheckProcess, coil_table
 
 CACHE = RUST / "target" / "port-systems"
 EPS = np.finfo(float).eps
@@ -112,7 +112,7 @@ def check_process(backend: str) -> CheckProcess:
     build = ["cargo", "build", "--release", "-q", "--target", WASM_TARGET]
     subprocess.run(build, cwd=RUST, check=True, env=env)
     wasm = target / WASM_TARGET / "release" / "coilcal-check.wasm"
-    return CheckProcess(["node", "--no-warnings", str(RUNNER), str(wasm)])
+    return CheckProcess(["node", *NODE_FLAGS, str(RUNNER), str(wasm)])
 
 
 def run(backend: str, repeat: int) -> list[tuple]:
