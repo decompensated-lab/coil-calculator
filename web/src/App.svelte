@@ -14,7 +14,7 @@
   import PairPlot from './lib/PairPlot.svelte';
   import PairSummary from './lib/PairSummary.svelte';
   import {
-    COUPLINGS, GAP_REFS, VNA_SETUPS, defaultPair, defaultParams, flatten, flattenPair,
+    COUPLINGS, DRIVES, GAP_REFS, VNA_SETUPS, defaultPair, defaultParams, flatten, flattenPair,
   } from './lib/protocol';
   import { pairView, si, view } from './lib/results';
   import SideView from './lib/SideView.svelte';
@@ -106,7 +106,11 @@
           <legend>Measurement</legend>
           <Choice label="VNA setup" tip="vna_setup" bind:value={params.vna_setup} options={VNA_SETUPS} />
           <Num label="Z0" tip="z0" bind:value={params.z0} unit="Ω" step={1} min={1} />
-          <Num label="source power" tip="p_dbm" bind:value={params.p_dbm} unit="dBm" step={1} />
+          <Choice label="drive" tip="drive" bind:value={params.drive} options={DRIVES} />
+          <Num label="source power" tip="p_dbm" bind:value={params.p_dbm} unit="dBm" step={1}
+            disabled={params.drive !== 'source power'} />
+          <Num label="P1 current" tip="i_drive" bind:value={params.i_drive_a} unit="A" step={0.1}
+            min={0} disabled={params.drive === 'source power'} />
           <Num label="load on B" tip="z_load" bind:value={params.z_load} unit="Ω" step={10} />
         </fieldset>
         <fieldset>

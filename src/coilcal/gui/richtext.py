@@ -177,7 +177,7 @@ def summary_html(r: Results, dark: bool = False) -> str:
         row(r"S_{11}", f"{db(s[0, 0]):.2f} dB", f"∠ {np.degrees(np.angle(s[0, 0])):.1f}°"),
         row(r"S_{21}", f"{db(s[1, 0]):.2f} dB", f"∠ {np.degrees(np.angle(s[1, 0])):.1f}°"),
         row(r"S_{22}", f"{db(s[1, 1]):.2f} dB", f"∠ {np.degrees(np.angle(s[1, 1])):.1f}°"),
-        row(r"V^{+}", si(r.v_plus, "V"), f"peak, {r.params.p_dbm:g} dBm into {r.params.z0:g} Ω"),
+        row(r"V^{+}", si(r.v_plus, "V"), f"peak, {r.p_dbm:.4g} dBm into {r.params.z0:g} Ω"),
         row(r"|I_{P1}|", si(abs(i_p[0]), "A"), "peak"),
         row(r"|I_{P2}|", si(abs(i_p[1]), "A"), "peak"),
         row(r"|B|_\mathrm{max}", si(np.abs(r.field_b).max(), "T"), "in side-view plane"),

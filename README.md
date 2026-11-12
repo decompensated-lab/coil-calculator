@@ -111,7 +111,8 @@ r.capacitance, r.tan_delta                               # 44.4 pF/m, effective 
 * **Placement of B:** a gap measured either edge-to-edge or centre-to-centre, plus a lateral
   offset.
 * **VNA setup:** A on P1 with B on P2, or one coil series-thru or shunt-thru. Also Z0 and
-  source power.
+  the drive level, given as source power in dBm or as the peak current into port 1 at the
+  view frequency (the summary then shows the power that current needs).
 * **Analysis settings:** sweep range, view frequency, B's load, R factor and coupling paths.
 
 **Tabs:**

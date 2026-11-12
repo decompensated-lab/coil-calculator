@@ -5,7 +5,7 @@
   import { decades, heatmap, logNorm, percentile, streamlines } from './fieldplot';
   import Frame from './Frame.svelte';
   import { COIL_COLORS, coilName } from './plot';
-  import { type Results, g, si } from './results';
+  import { type Results, g, si, driveLabel } from './results';
 
   let { r, oncut }: { r: Results; oncut: (z_mm: number) => void } = $props();
 
@@ -73,7 +73,7 @@
 </script>
 
 <h3 class="plot-title">
-  {r.params.vna_setup} — {g(r.params.p_dbm, 6)} dBm at P1, {si(r.fView, 'Hz')}
+  {r.params.vna_setup} — {driveLabel(r)} at P1, {si(r.fView, 'Hz')}
 </h3>
 <Frame x0={v.x[0]} x1={v.x[v.x.length - 1]} y0={v.z[0]} y1={v.z[v.z.length - 1]}
   xLabel="x [mm]" yLabel="z (coil A axis) [mm]"

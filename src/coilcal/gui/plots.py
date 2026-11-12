@@ -137,7 +137,7 @@ def draw_cross_section(fig: Figure, r: Results, fill: Fill | str = Fill.CURRENT)
         label = "|I_turn| [A peak]" if fill is Fill.CURRENT else "|V_turn| [V peak]"
         fig.colorbar(sm, ax=list(axes), label=label, shrink=0.9)
     fig.suptitle(
-        f"Winding cross-section — {r.params.vna_setup}, {r.params.p_dbm:g} dBm, "
+        f"Winding cross-section — {r.params.vna_setup}, {r.drive_label} at P1, "
         f"{r.f_view / 1e6:.4g} MHz",
         x=0.01,
         ha="left",
@@ -200,7 +200,7 @@ def draw_side_view(fig: Figure, r: Results) -> None:
     ax.set_ylabel("z (coil A axis) [mm]")
     _style(ax, grid=False)
     ax.set_title(
-        f"{r.params.vna_setup} — {r.params.p_dbm:g} dBm at P1, {r.f_view / 1e6:.4g} MHz",
+        f"{r.params.vna_setup} — {r.drive_label} at P1, {r.f_view / 1e6:.4g} MHz",
         loc="left",
         color=INK,
         fontsize=10,
@@ -350,7 +350,7 @@ def draw_distribution(fig: Figure, r: Results) -> None:
     ax1.set_yscale("log")
     ax1.legend(frameon=False, fontsize=8)
     ax1.set_title(
-        f"{r.params.vna_setup}, {r.params.p_dbm:g} dBm at P1, {r.f_view / 1e6:.4g} MHz",
+        f"{r.params.vna_setup}, {r.drive_label} at P1, {r.f_view / 1e6:.4g} MHz",
         loc="left",
         fontsize=10,
     )
@@ -406,7 +406,7 @@ def draw_bz_profiles(fig: Figure, r: Results) -> None:
     ax_z.set_xlabel("z along coil A axis [mm]  (dashed: height of the Bz(x) cut)")
     ax_x.set_xlabel(f"x [mm] at z = {z_cut:g} mm  (vertical lines: winding radii)")
     ax_z.set_title(
-        f"B_z on the axis — {r.params.vna_setup}, {r.params.p_dbm:g} dBm, "
+        f"B_z on the axis — {r.params.vna_setup}, {r.drive_label} at P1, "
         f"{r.f_view / 1e6:.4g} MHz  (quadrature part ≤ {quad:.1%} of peak)",
         loc="left",
         fontsize=10,

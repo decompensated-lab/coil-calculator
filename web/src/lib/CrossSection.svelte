@@ -6,7 +6,7 @@
   import { blues, css } from './fieldplot';
   import Frame from './Frame.svelte';
   import { COIL_COLORS, coilName } from './plot';
-  import { type Results, abs, at, g, si } from './results';
+  import { type Results, abs, at, g, si, driveLabel } from './results';
 
   export type Fill = '|I|' | '|V|' | 'none';
   const FILLS: Fill[] = ['|I|', '|V|', 'none'];
@@ -66,7 +66,7 @@
 </script>
 
 <h3 class="plot-title">
-  Winding cross-section — {r.params.vna_setup}, {g(r.params.p_dbm, 6)} dBm, {si(r.fView, 'Hz')}
+  Winding cross-section — {r.params.vna_setup}, {driveLabel(r)} at P1, {si(r.fView, 'Hz')}
 </h3>
 {#each v.strips as s (s.name)}
   <p class="strip-title">{s.title}</p>

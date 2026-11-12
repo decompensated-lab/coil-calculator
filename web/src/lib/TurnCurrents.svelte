@@ -1,7 +1,7 @@
 <!-- Turn currents and node voltages for the VNA drive (gui/plots.py draw_distribution). -->
 <script lang="ts">
   import { COIL_COLORS, type Panel, charts, coilName } from './plot';
-  import { type Results, abs, at, g, si } from './results';
+  import { type Results, abs, at, g, si, driveLabel } from './results';
 
   let { r }: { r: Results } = $props();
 
@@ -37,6 +37,6 @@
 </script>
 
 <h3 class="plot-title">
-  {r.params.vna_setup}, {g(r.params.p_dbm, 6)} dBm at P1, {si(r.fView, 'Hz')}
+  {r.params.vna_setup}, {driveLabel(r)} at P1, {si(r.fView, 'Hz')}
 </h3>
 <div class="chart" {@attach charts(panels(r))}></div>

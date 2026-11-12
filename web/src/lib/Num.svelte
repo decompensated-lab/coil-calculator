@@ -10,6 +10,7 @@
     step = 'any',
     min,
     max,
+    disabled = false,
     oninput,
   }: {
     label: string;
@@ -19,14 +20,15 @@
     step?: number | 'any';
     min?: number;
     max?: number;
+    disabled?: boolean;
     oninput?: () => void;
   } = $props();
 </script>
 
-<label class="row" title={TIPS[tip]}>
+<label class={['row', { off: disabled }]} title={TIPS[tip]}>
   <span class="name">{label}</span>
   <span class="field">
-    <input type="number" placeholder=" " bind:value {step} {min} {max} {oninput} />
+    <input type="number" placeholder=" " bind:value {step} {min} {max} {disabled} {oninput} />
     {#if unit}<span class="unit">{unit}</span>{/if}
   </span>
 </label>

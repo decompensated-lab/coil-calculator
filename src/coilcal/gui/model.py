@@ -57,6 +57,13 @@ class VnaSetup(StrEnum):
         return None
 
 
+class Drive(StrEnum):
+    """How the level of the VNA drive is given."""
+
+    POWER = "source power"
+    CURRENT = "port 1 current"
+
+
 class Fill(StrEnum):
     """What colours the wire circles in the cross-section."""
 
@@ -142,6 +149,8 @@ class Params:
     vna_setup: VnaSetup = VnaSetup.PAIR
     z0: float = 50.0
     p_dbm: float = 0.0
+    drive: Drive = Drive.POWER
+    i_drive_a: float = 1.0  # peak current into port 1 at f_view (Drive.CURRENT)
     x_line_z_mm: float = 0.0  # height of the Bz(x) profile (0 = centre of coil A)
 
     def __post_init__(self) -> None:
@@ -149,6 +158,7 @@ class Params:
         self.gap_ref = GapRef(self.gap_ref)
         self.coupling = Coupling(self.coupling)
         self.vna_setup = VnaSetup(self.vna_setup)
+        self.drive = Drive(self.drive)
         if not 0 < self.f_min_mhz < self.f_max_mhz:
             raise ValueError("need 0 < f_min < f_max")
 
@@ -254,6 +264,19 @@ class Results:
         return float(self.res.freqs[self.i_view])
 
     @property
+    def p_dbm(self) -> float:
+        """Available source power at port 1 [dBm]: as set, or what the set current needs."""
+        if self.params.drive is Drive.POWER:
+            return self.params.p_dbm
+        return float(10 * np.log10(self.v_plus**2 / (2 * self.params.z0) / 1e-3))
+
+    @property
+    def drive_label(self) -> str:
+        """The drive level as it was set, for plot titles."""
+        p = self.params
+        return f"{p.i_drive_a:g} A" if p.drive is Drive.CURRENT else f"{p.p_dbm:g} dBm"
+
+    @property
     def freqs(self) -> FloatArray:
         return self.res.freqs
 
@@ -300,6 +323,14 @@ def compute(p: Params) -> Results:
     v_plus = incident_voltage(p.p_dbm, p.z0)
     emf = np.array([2 * v_plus, 0.0])
     drive_turn_i, drive_port_i = driven_turn_currents(vna_res, emf, p.z0)
+    if p.drive is Drive.CURRENT:
+        # the network is linear: rescale the source so that |I_P1| at f_view is the set value
+        if not p.i_drive_a > 0:
+            raise ValueError("the port 1 current must be positive")
+        scale = p.i_drive_a / abs(drive_port_i[i_view, 0])
+        v_plus *= scale
+        drive_turn_i *= scale
+        drive_port_i *= scale
     drive_node_v = np.einsum("fp,fpn->fn", drive_port_i, vna_res.node_voltages)
 
     fx, fz = _field_grid(vna_coils)

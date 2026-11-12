@@ -32,6 +32,7 @@ export type Material = keyof typeof MATERIALS;
 export const GROUNDINGS = ['floating', 'start', 'end'] as const;
 export const GAP_REFS = ['edge-to-edge', 'centre-to-centre'] as const;
 export const COUPLINGS = ['full', 'magnetic', 'electric'] as const;
+export const DRIVES = ['source power', 'port 1 current'] as const;
 export const VNA_SETUPS = [
   'A on P1, B on P2 (coupling)',
   'A series-thru (P1–A–P2)',
@@ -43,6 +44,7 @@ export type Grounding = (typeof GROUNDINGS)[number];
 export type GapRef = (typeof GAP_REFS)[number];
 export type Coupling = (typeof COUPLINGS)[number];
 export type VnaSetup = (typeof VNA_SETUPS)[number];
+export type Drive = (typeof DRIVES)[number];
 
 export interface CoilParams {
   wire_d_mm: number;
@@ -78,6 +80,9 @@ export interface Params {
   vna_setup: VnaSetup;
   z0: number;
   p_dbm: number;
+  drive: Drive;
+  /** Peak current into port 1 at the view frequency (drive = 'port 1 current'). */
+  i_drive_a: number;
   /** Height of the Bz(x) profile (0 = centre of coil A). */
   x_line_z_mm: number;
 }
@@ -119,6 +124,8 @@ export function defaultParams(): Params {
     vna_setup: VNA_SETUPS[0],
     z0: 50.0,
     p_dbm: 0.0,
+    drive: 'source power',
+    i_drive_a: 1.0,
     x_line_z_mm: 0.0,
   };
 }
@@ -139,13 +146,14 @@ export function flatten(p: Params): Record<string, number> {
     out[`${k}.former_tan_delta`] = num(c.former.tan_delta);
   }
   for (const f of ['gap_mm', 'offset_mm', 'f_min_mhz', 'f_max_mhz', 'n_freq', 'f_view_mhz',
-    'z_load', 'r_factor', 'z0', 'p_dbm', 'x_line_z_mm'] as const) {
+    'z_load', 'r_factor', 'z0', 'p_dbm', 'i_drive_a', 'x_line_z_mm'] as const) {
     out[f] = num(p[f]);
   }
   out.b_enabled = p.b_enabled ? 1 : 0;
   out.gap_ref = GAP_REFS.indexOf(p.gap_ref);
   out.coupling = COUPLINGS.indexOf(p.coupling);
   out.vna_setup = VNA_SETUPS.indexOf(p.vna_setup);
+  out.drive = DRIVES.indexOf(p.drive);
   return out;
 }
 

@@ -34,8 +34,9 @@ def flat(p: gm.Params) -> dict[str, float]:
             f"{k}.former_tan_delta": c.former.tan_delta,
         }
     for f in ["gap_mm", "offset_mm", "f_min_mhz", "f_max_mhz", "n_freq", "f_view_mhz",
-              "z_load", "r_factor", "z0", "p_dbm", "x_line_z_mm"]:  # fmt: skip
+              "z_load", "r_factor", "z0", "p_dbm", "i_drive_a", "x_line_z_mm"]:  # fmt: skip
         d[f] = getattr(p, f)
+    d["drive"] = list(gm.Drive).index(p.drive)
     d["b_enabled"] = p.b_enabled
     d["gap_ref"] = list(gm.GapRef).index(p.gap_ref)
     d["coupling"] = list(Coupling).index(p.coupling)
@@ -117,6 +118,8 @@ CASES = {
     "lossless-tuned": gm.Params(
         a=gm.CoilParams(insulation=Dielectric(3.6), former=Dielectric(2.6), ground="start"),
         offset_mm=12.0, r_factor=1.5, z0=75.0, p_dbm=10.0, n_freq=120, f_view_mhz=0.37),
+    "current-drive": gm.Params(
+        vna_setup=gm.VnaSetup.A_SHUNT, drive=gm.Drive.CURRENT, i_drive_a=0.3, n_freq=40),
 }  # fmt: skip
 # Network results: as in test_circuit (cond up to 8e7); floating node voltages carry the whole
 # matrix's conditioning, see RTOL_V there.
@@ -166,6 +169,7 @@ ERRORS = {
     "f_min >= f_max": lambda: gm.Params(f_min_mhz=5.0, f_max_mhz=5.0),
     "pair without B": lambda: gm.Params(b_enabled=False),
     "B thru without B": lambda: gm.Params(b_enabled=False, vna_setup=gm.VnaSetup.B_SERIES),
+    "current <= 0": lambda: gm.Params(drive=gm.Drive.CURRENT, i_drive_a=0.0),
 }  # fmt: skip
 
 

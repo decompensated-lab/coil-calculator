@@ -107,6 +107,8 @@ pub struct Params {
     pub vna_setup: VnaSetup,
     pub z0: f64,
     pub p_dbm: f64,
+    /// `Drive.CURRENT`: the peak current into port 1 at the view frequency sets the level.
+    pub i_drive_a: Option<f64>,
     /// Height of the Bz(x) profile (0 = centre of coil A).
     pub x_line_z_mm: f64,
 }
@@ -250,6 +252,9 @@ impl Params {
                 return Err(format!("{what} must be positive"));
             }
         }
+        if self.i_drive_a.is_some_and(|i| !(i > 0.0)) {
+            return Err("the port 1 current must be positive".into());
+        }
         Ok(())
     }
 
@@ -317,6 +322,14 @@ impl Params {
             },
             z0: get("z0")?,
             p_dbm: get("p_dbm")?,
+            i_drive_a: {
+                let i = get("i_drive_a")?;
+                match get("drive")? as i64 {
+                    0 => None,
+                    1 => Some(i),
+                    _ => return Err("bad drive code".into()),
+                }
+            },
             x_line_z_mm: get("x_line_z_mm")?,
         };
         vals.finish()?;
@@ -534,9 +547,17 @@ pub fn compute(p: &Params) -> Result<Results, String> {
         }
     };
     let s = vna::z_to_s(&vna_res.z, 2, p.z0)?;
-    let v_plus = vna::incident_voltage(p.p_dbm, p.z0);
+    let mut v_plus = vna::incident_voltage(p.p_dbm, p.z0);
     let emf = [c64::new(2.0 * v_plus, 0.0), c64::new(0.0, 0.0)];
-    let (drive_turn_i, drive_port_i) = vna::driven_turn_currents(vna_res, 2, &emf, p.z0)?;
+    let (mut drive_turn_i, mut drive_port_i) = vna::driven_turn_currents(vna_res, 2, &emf, p.z0)?;
+    if let Some(i) = p.i_drive_a {
+        // the network is linear: rescale the source so that |I_P1| at f_view is the set value
+        let scale = i / drive_port_i[i_view * 2].norm();
+        v_plus *= scale;
+        for x in drive_turn_i.iter_mut().chain(&mut drive_port_i) {
+            *x *= scale;
+        }
+    }
     let nn = vna_res.node_voltages.len() / (nf * 2);
     let drive_node_v: Vec<c64> = (0..nf * nn)
         .map(|fn_| {

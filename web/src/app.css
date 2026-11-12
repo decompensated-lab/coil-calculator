@@ -76,7 +76,8 @@ select {
 input[type="number"]:placeholder-shown {
   border-color: var(--error);
 }
-fieldset:disabled .row {
+fieldset:disabled .row,
+.row.off {
   opacity: 0.5;
 }
 .u-legend {

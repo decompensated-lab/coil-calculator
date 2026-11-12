@@ -11,7 +11,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from ..types import Coupling, Grounding
 from . import plots
 from .help import GUIDE_HTML, TAB_TIPS
-from .model import CoilParams, Fill, GapRef, Params, Results, VnaSetup, compute
+from .model import CoilParams, Drive, Fill, GapRef, Params, Results, VnaSetup, compute
 from .pairtab import WirePairTab
 from .richtext import summary_html
 from .widgets import (
@@ -164,14 +164,18 @@ class MainWindow(QtWidgets.QMainWindow):
         box_v = QtWidgets.QGroupBox("VNA")
         self.vna_setup: EnumCombo[VnaSetup] = EnumCombo(VnaSetup, p.vna_setup)
         self.z0 = _dspin(p.z0, 1, 1000, 1, decimals=1, suffix=" Ω")
+        self.drive: EnumCombo[Drive] = EnumCombo(Drive, p.drive)
         self.p_dbm = _dspin(p.p_dbm, -100, 40, 1, decimals=1, suffix=" dBm")
+        self.i_drive = _dspin(p.i_drive_a, 1e-9, 1e3, 0.1, decimals=6, suffix=" A")
         self.fill: EnumCombo[Fill] = EnumCombo(Fill, Fill.CURRENT)
         _add_rows(
             QtWidgets.QFormLayout(box_v),
             [
                 ("setup", "vna_setup", self.vna_setup),
                 ("Z0", "z0", self.z0),
+                ("drive", "drive", self.drive),
                 ("source power", "p_dbm", self.p_dbm),
+                ("P1 current", "i_drive", self.i_drive),
                 ("cross-section fill", "fill", self.fill),
             ],
         )
@@ -262,12 +266,19 @@ class MainWindow(QtWidgets.QMainWindow):
         inputs: list[Field] = [
             self.gap_ref, self.gap, self.offset, self.f_min, self.f_max, self.n_freq,
             self.f_view, self.z_load, self.r_factor, self.coupling, self.vna_setup, self.z0,
-            self.p_dbm, self.x_line_z,
+            self.drive, self.p_dbm, self.i_drive, self.x_line_z,
         ]  # fmt: skip
         for inp in inputs:
             _changed_signal(inp).connect(self._timer.start)
+        self.drive.currentIndexChanged.connect(lambda _: self._drive_changed())
+        self._drive_changed()
         self.fill.currentIndexChanged.connect(lambda _: self._mark_dirty({"Cross-section"}))
         self.recompute()
+
+    def _drive_changed(self) -> None:
+        current = self.drive.value() is Drive.CURRENT
+        self.p_dbm.setEnabled(not current)
+        self.i_drive.setEnabled(current)
 
     def _build_menu(self) -> None:
         menu = self.menuBar().addMenu("&Help")
@@ -308,6 +319,8 @@ class MainWindow(QtWidgets.QMainWindow):
             vna_setup=self.vna_setup.value(),
             z0=self.z0.value(),
             p_dbm=self.p_dbm.value(),
+            drive=self.drive.value(),
+            i_drive_a=self.i_drive.value(),
             x_line_z_mm=self.x_line_z.value(),
         )
 

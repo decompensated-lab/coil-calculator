@@ -62,6 +62,13 @@ TIPS = {
     "z0": "Reference impedance of the VNA ports (also their source and load impedance).",
     "p_dbm": "Available source power at port 1. It sets the absolute currents and fields "
     "(incident peak voltage V+ = √(2·Z0·P)). All other ports are terminated in Z0.",
+    "drive": "How the drive level is given:\n"
+    "• source power: the available power at port 1, as on a VNA.\n"
+    "• port 1 current: the source is scaled so that the current into port 1 at the view "
+    "frequency has the set peak value; the summary shows the power this needs.",
+    "i_drive": "Peak current into port 1 at the view frequency. In the 'A on P1, B on P2' and "
+    "series-thru setups this is the current into the coil's terminal; in shunt-thru part of "
+    "it goes into port 2's termination.",
     # wire pair tab
     "pair_cond": "Diameter of the bare conductor.",
     "pair_ins": "Outer diameter over the insulation (Coil64's 'wire diameter with insulation'). "
