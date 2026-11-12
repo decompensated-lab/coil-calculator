@@ -4,6 +4,7 @@
   import CoilForm from './lib/CoilForm.svelte';
   import { Computer } from './lib/compute.svelte';
   import CrossSection, { type Fill } from './lib/CrossSection.svelte';
+  import Guide from './lib/Guide.svelte';
   import { TAB_TIPS } from './lib/help';
   import ImpedancePlot from './lib/ImpedancePlot.svelte';
   import Num from './lib/Num.svelte';
@@ -51,7 +52,10 @@
 
 <div class="app">
   <aside>
-    <h1>coilcal <span>turn-level coil model</span></h1>
+    <header>
+      <h1>coilcal <span>turn-level coil model</span></h1>
+      <Guide />
+    </header>
     {#if onPair}
       <PairForm bind:pair coilA={params.a} />
     {:else}
@@ -156,8 +160,15 @@
     border-right: 1px solid var(--grid);
     background: var(--panel);
   }
-  h1 {
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
     margin: 0 0 10px;
+  }
+  h1 {
+    margin: 0;
     font-size: 1.15rem;
   }
   h1 span {
