@@ -1,12 +1,13 @@
 <!-- x–z plane through the coil axes: |B| (peak) map, field lines at the phase of maximum
-     field, wires and formers at true scale (gui/plots.py draw_side_view). -->
+     field, wires and formers at true scale (gui/plots.py draw_side_view). The pointer reads
+     |B|; a click moves the height of the Bz(x) cut (dashed). -->
 <script lang="ts">
   import { decades, heatmap, logNorm, percentile, streamlines } from './fieldplot';
   import Frame from './Frame.svelte';
   import { COIL_COLORS, coilName } from './plot';
   import { type Results, g, si } from './results';
 
-  let { r }: { r: Results } = $props();
+  let { r, oncut }: { r: Results; oncut: (z_mm: number) => void } = $props();
 
   function view(r: Results) {
     const x = Array.from(r.fieldX, (v) => v * 1e3);
@@ -44,8 +45,16 @@
       );
       return { c, color, zt, x0: c.position[0] * 1e3, zc: c.position[2] * 1e3 };
     });
+    /** |B| [µT] at a point, bilinear between the grid nodes. */
+    const probe = (px: number, pz: number) => {
+      const [fx, fz] = [(px - x[0]) / dx, (pz - z[0]) / dz];
+      const [i, j] = [Math.min(Math.floor(fx), nx - 2), Math.min(Math.floor(fz), nz - 2)];
+      const [u, w] = [fx - i, fz - j];
+      const m = (a: number, b: number) => mag[(j + b) * nx + i + a];
+      return (1 - w) * ((1 - u) * m(0, 0) + u * m(1, 0)) + w * ((1 - u) * m(0, 1) + u * m(1, 1));
+    };
     return {
-      x, z, dx, dz, lo, hi, coils,
+      x, z, dx, dz, lo, hi, coils, probe,
       image: heatmap(mag, nx, nz, norm),
       paths: lines.map((l) => 'M' + l.map(([a, c]) => `${a.toFixed(2)},${c.toFixed(2)}`).join('L')),
       // one arrow per line, at its middle, pointing along the field
@@ -60,6 +69,7 @@
 
   const v = $derived(view(r));
   const a = $derived((v.x[v.x.length - 1] - v.x[0]) / 120); // arrow size
+  let hover: { x: number; y: number } | null = $state(null);
 </script>
 
 <h3 class="plot-title">
@@ -67,8 +77,9 @@
 </h3>
 <Frame x0={v.x[0]} x1={v.x[v.x.length - 1]} y0={v.z[0]} y1={v.z[v.z.length - 1]}
   xLabel="x [mm]" yLabel="z (coil A axis) [mm]"
-  colorbar={{ label: '|B| [µT peak]', ticks: v.ticks }}
-  label="Magnetic field magnitude and field lines in the plane of the coil axes">
+  colorbar={{ label: '|B| [µT peak]', ticks: v.ticks }} maxHeight={0.6}
+  label="Magnetic field magnitude and field lines in the plane of the coil axes"
+  onprobe={(p) => (hover = p)} onpick={(p) => oncut(Number(p.y.toFixed(1)))}>
   <image href={v.image} x={v.x[0] - v.dx / 2} y={v.z[0] - v.dz / 2}
     width={v.x[v.x.length - 1] - v.x[0] + v.dx} height={v.z[v.z.length - 1] - v.z[0] + v.dz}
     preserveAspectRatio="none" />
@@ -99,7 +110,21 @@
       {/each}
     {/each}
   {/each}
+  <line class="cut" x1={v.x[0]} x2={v.x[v.x.length - 1]} y1={r.params.x_line_z_mm}
+    y2={r.params.x_line_z_mm} />
+  {#if hover}
+    <line class="hair" x1={hover.x} x2={hover.x} y1={v.z[0]} y2={v.z[v.z.length - 1]} />
+    <line class="hair" x1={v.x[0]} x2={v.x[v.x.length - 1]} y1={hover.y} y2={hover.y} />
+  {/if}
 </Frame>
+<p class="readout muted">
+  {#if hover}
+    x = {hover.x.toFixed(1)} mm, z = {hover.y.toFixed(1)} mm:
+    <b>|B| = {si(v.probe(hover.x, hover.y) * 1e-6, 'T', 3)}</b> peak
+  {:else}
+    Point at the map to read |B|; click to move the B<sub>z</sub>(x) cut (dashed).
+  {/if}
+</p>
 
 <style>
   .lines path {
@@ -119,5 +144,25 @@
   }
   line {
     vector-effect: non-scaling-stroke;
+  }
+  .cut,
+  .hair {
+    stroke: var(--ink);
+    stroke-width: 1px;
+    pointer-events: none;
+  }
+  .cut {
+    stroke-dasharray: 6 4;
+  }
+  .hair {
+    opacity: 0.45;
+  }
+  .readout {
+    margin: 4px 0 0;
+    min-height: 1.4em;
+    font-variant-numeric: tabular-nums;
+  }
+  .readout b {
+    color: var(--ink);
   }
 </style>

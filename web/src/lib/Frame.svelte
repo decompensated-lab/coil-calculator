@@ -1,6 +1,7 @@
 <!-- Equal-aspect plot frame in data coordinates (y up): axes with ticks and labels, a clip
      region for the content, and an optional colour bar. Content is drawn by the `children`
-     snippet in data coordinates (it is placed under a y flip). -->
+     snippet in data coordinates (it is placed under a y flip). `onprobe` reports the data
+     point under the pointer (null outside the axes), `onpick` a click or tap on one. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { blues, css, ticks } from './fieldplot';
@@ -21,6 +22,8 @@
     colorbar,
     label,
     maxHeight = 0.7,
+    onprobe,
+    onpick,
     children,
   }: {
     x0: number;
@@ -34,6 +37,8 @@
     label: string;
     /** Height limit as a fraction of the viewport height. */
     maxHeight?: number;
+    onprobe?: (point: { x: number; y: number } | null) => void;
+    onpick?: (point: { x: number; y: number }) => void;
     children: Snippet;
   } = $props();
 
@@ -64,11 +69,30 @@
   const yt = $derived(ticks(y0, y1, Math.max(2, Math.round(H / (3 * f)))));
   const fmt = (v: number) => Number(v.toPrecision(6)).toString();
   const stops = Array.from({ length: 9 }, (_, i) => i / 8);
+
+  /** Data coordinates of a pointer event, or null outside the axes. */
+  function locate(e: MouseEvent & { currentTarget: SVGSVGElement }) {
+    const ctm = e.currentTarget.getScreenCTM()!;
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+    const [x, y] = [p.x, -p.y];
+    return x >= x0 && x <= x1 && y >= y0 && y <= y1 ? { x, y } : null;
+  }
+  function pick(e: MouseEvent & { currentTarget: SVGSVGElement }) {
+    const p = locate(e);
+    if (p) onpick?.(p);
+  }
 </script>
 
 <svelte:window bind:innerHeight />
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions
+     (pointer extras: the readout is supplementary and what a click sets also has an input) -->
 <svg
   bind:clientWidth={width}
+  class={{ live: onprobe || onpick }}
+  onpointermove={onprobe && ((e) => onprobe(locate(e)))}
+  onpointerdown={onprobe && ((e) => onprobe(locate(e)))}
+  onpointerleave={onprobe && (() => onprobe(null))}
+  onclick={onpick && pick}
   viewBox="{x0 - ml} {-y1 - mt} {W + ml + mr} {H + mt + mb}"
   style:max-height="{maxHeight * 100}vh"
   role="img"
@@ -117,6 +141,9 @@
     display: block;
     width: 100%;
     overflow: visible;
+  }
+  .live {
+    cursor: crosshair;
   }
   .axes line,
   .axes rect {

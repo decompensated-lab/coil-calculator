@@ -1,14 +1,16 @@
 <!-- The windings as rows of wire cross-sections at true size and pitch, one strip per coil,
-     each cropped to its own winding (gui/plots.py draw_cross_section). Fill: turn current or
-     turn potential for the VNA drive. -->
+     each centred on its own winding and all at the same scale (gui/plots.py
+     draw_cross_section). Fill: turn current or turn potential for the VNA drive. -->
 <script lang="ts">
+  import Choice from './Choice.svelte';
   import { blues, css } from './fieldplot';
   import Frame from './Frame.svelte';
   import { COIL_COLORS, coilName } from './plot';
   import { type Results, abs, at, g, si } from './results';
 
   export type Fill = '|I|' | '|V|' | 'none';
-  let { r, fill }: { r: Results; fill: Fill } = $props();
+  const FILLS: Fill[] = ['|I|', '|V|', 'none'];
+  let { r, fill = $bindable() }: { r: Results; fill: Fill } = $props();
 
   const INSULATION = '#e9c98f';
   const FORMER = '#d9d6cc';
@@ -53,6 +55,9 @@
         title: `coil ${name}: ${c.n_turns} turns, wire Ø${g(c.wire_d * 1e3, 6)}/${g(c.insulation_d * 1e3, 6)} mm, pitch ${g(c.pitch * 1e3, 6)} mm, former Ø${g(c.former_d * 1e3, 6)} mm${offset}`,
       };
     });
+    // the same axial span for every strip, so equal wires are drawn equally large
+    const span = Math.max(...strips.map((s) => s.x1 - s.x0));
+    for (const s of strips) [s.x0, s.x1] = [(s.x0 + s.x1 - span) / 2, (s.x0 + s.x1 + span) / 2];
     return { strips, lo, hi };
   }
 
@@ -83,14 +88,15 @@
     {/each}
   </Frame>
 {/each}
-{#if fill !== 'none'}
-  <div class="legend">
+<div class="legend">
+  <Choice label="fill" tip="fill" bind:value={fill} options={FILLS} />
+  {#if fill !== 'none'}
     <span>{si(v.lo, unit, 3)}</span>
     <span class="bar"></span>
     <span>{si(v.hi, unit, 3)}</span>
-    <span class="muted">{fill === '|I|' ? '|I_turn| [A peak]' : '|V_turn| [V peak]'}</span>
-  </div>
-{/if}
+    <span class="muted">peak, per turn</span>
+  {/if}
+</div>
 
 <style>
   .strip-title {
@@ -113,13 +119,18 @@
   }
   .legend {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     margin-top: 8px;
     font-size: 0.85rem;
   }
+  .legend :global(.row) {
+    grid-template-columns: auto 5em;
+    margin-right: 8px;
+  }
   .bar {
-    width: 200px;
+    width: 140px;
     height: 12px;
     background: linear-gradient(to right, #f7fbff, #c6dbef, #6baed6, #2171b5, #08306b);
     border: 1px solid var(--grid);

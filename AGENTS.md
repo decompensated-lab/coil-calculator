@@ -75,7 +75,10 @@ at the image.
   * `src/lib/worker.ts` + `compute.svelte.ts`: the model in a Web Worker, newest request wins.
   * `src/lib/results.ts`: typed views of the responses, complex and SI-format helpers.
   * `src/lib/plot.ts` (uPlot panels) and `Frame.svelte` + `fieldplot.ts` (equal-aspect SVG,
-    colour map, streamlines, contours): the matplotlib replacements. One component per tab.
+    colour map, streamlines, contours): the matplotlib replacements. One component per plot.
+  * `src/App.svelte`: the dashboard (header with the mode switch and view frequency, inputs
+    on the left, `KeyNumbers`, then cards that each switch between related plots).
+    `CoilTable.svelte` is the input table with a column per coil.
   * `src/lib/help.ts`: generated from `gui/help.py`; do not edit by hand.
 
 ## Conventions

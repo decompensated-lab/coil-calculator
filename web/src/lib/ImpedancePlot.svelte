@@ -3,7 +3,7 @@
   import { COIL_COLORS, type Mark, type Panel, charts } from './plot';
   import { type Results, abs, at } from './results';
 
-  let { r }: { r: Results } = $props();
+  let { r, onview }: { r: Results; onview: (mhz: number) => void } = $props();
 
   function panels(r: Results): Panel[] {
     const nc = r.coils.length;
@@ -31,9 +31,9 @@
       ),
     ];
     return [
-      { data: top, series, height: 300, xLog: true, yLog: true, xHidden: true,
+      { data: top, series, height: 240, xLog: true, yLog: true, xHidden: true,
         xLabel: 'f [MHz]', yLabel: '|Z_in| [Ω]', marks },
-      { data: bottom, series: series.map((s) => ({ ...s })), height: 170, xLog: true,
+      { data: bottom, series: series.map((s) => ({ ...s })), height: 150, xLog: true,
         xTicks: 'plain', yRange: [0, 3], xLabel: 'frequency [MHz]', yLabel: 'L_eff / L_DC',
         marks, legend: false },
     ];
@@ -43,4 +43,4 @@
 <h3 class="plot-title">
   Input impedance (other coil open) — dotted: quasi-DC R(f)+jωL(f), dashed: SRF
 </h3>
-<div class="chart" {@attach charts(panels(r), 'impedance')}></div>
+<div class="chart" {@attach charts(panels(r), 'impedance', onview)}></div>

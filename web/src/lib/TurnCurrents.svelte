@@ -28,9 +28,9 @@
       };
     });
     return [
-      { data: cur, series, height: 240, yLog: true, xLabel: 'turn', yLabel: '|I_turn| [A peak]',
+      { data: cur, series, height: 190, yLog: true, xInt: true, xLabel: 'turn', yLabel: '|I_turn| [A peak]',
         yTicks: 'si' },
-      { data: volt, series: series.map((s) => ({ ...s })), height: 240, xLabel: 'turn / node index (0 = start terminal)',
+      { data: volt, series: series.map((s) => ({ ...s })), height: 190, xInt: true, xLabel: 'turn / node index (0 = start terminal)',
         yLabel: '|V_node| [V peak]', yTicks: 'si', legend: false },
     ];
   }

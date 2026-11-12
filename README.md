@@ -145,7 +145,13 @@ Warnings flag a view frequency near a resonance, a tight pitch with no proximity
 ## Browser app (work in progress, branch `wasm-rewrite`)
 
 The same app, running in the browser with no server: the model is ported to Rust and compiled
-to WebAssembly, and the interface is a Svelte page with every tab of the Qt GUI.
+to WebAssembly, and the interface is a Svelte page with every plot of the Qt GUI.
+
+Instead of one tab at a time it is a dashboard: the key numbers stay on top, and a geometry
+or field picture, a frequency sweep, a snapshot at the view frequency and the full table
+(one column per coil) are visible together. Both coils are entered side by side. A click in
+a sweep plot sets the view frequency; the side view reads |B| under the pointer, and a click
+there moves the height of the Bz(x) cut. The wire-pair calculator is a separate mode.
 
 ```bash
 cd web && pnpm install && pnpm dev   # needs the Rust toolchain in rust/rust-toolchain.toml

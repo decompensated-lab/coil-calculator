@@ -1,16 +1,24 @@
-<!-- Results at the view frequency (port of gui/richtext.py summary_html). -->
+<!-- Results at the view frequency (port of gui/richtext.py summary_html): one table with a
+     column per coil, then the A → B and VNA quantities. -->
 <script lang="ts">
   import katex from 'katex';
   import 'katex/dist/katex.min.css';
-  import type { CoilParams, Grounding } from './protocol';
-  import { type Results, abs, at, deg, div, g, mul, pct, si } from './results';
+  import type { Grounding } from './protocol';
+  import { type Results, abs, at, coilAtView, deg, div, g, mul, pct, si } from './results';
 
   let { r }: { r: Results } = $props();
 
+  /** A value, or a value with a per-coil remark under it. */
+  type Cell = string | [value: string, detail: string];
+  interface CoilRow {
+    sym: string;
+    cells: Cell[];
+    note?: string;
+  }
   type Row = [sym: string, value: string, note?: string];
   interface Section {
     title: string;
-    sub?: string[];
+    sub?: string;
     rows: Row[];
   }
 
@@ -19,87 +27,62 @@
   const groundLabel = (g: Grounding) => (g === 'floating' ? 'floating' : `${g} grounded`);
   const nanmin = (xs: number[]) => Math.min(...xs.filter((x) => !Number.isNaN(x)));
 
-  function dielectricLabel(c: CoilParams): string {
-    const t = (c.insulation_d_mm - c.wire_d_mm) / 2;
-    const ins =
-      t > 0 && c.insulation.eps_r !== 1
-        ? `insulation εr ${g(c.insulation.eps_r, 6)} (${(t * 1e3).toFixed(0)} µm)`
-        : t <= 0
-          ? 'bare wire'
-          : 'insulation εr 1';
-    const fmr =
-      c.former.eps_r !== 1
-        ? `former εr ${g(c.former.eps_r, 6)}, ${g(c.former_wall_mm, 6)} mm wall`
-        : 'no former dielectric';
-    return `${ins} · ${fmr}`;
+  function coilRows(r: Results): CoilRow[] {
+    const p = r.params;
+    const lam = 299_792_458 / r.fView;
+    const ks = r.coils.map((_, k) => k);
+    const v = ks.map((k) => coilAtView(r, k));
+    const two = ks.length === 2;
+    // any resonance of the system shows up in every port's Z (through the coupling)
+    const fRes = nanmin([...r.srfNet, ...r.srfHere]);
+    const below = !Number.isFinite(fRes) || r.fView < 0.5 * fRes;
+    const shifted = (k: number) =>
+      two && Number.isFinite(r.srfHere[k]) && Math.abs(r.srfHere[k] / r.srfNet[k] - 1) > 1e-3;
+    const row = (sym: string, cell: (k: number) => Cell, note?: string): CoilRow => ({
+      sym, cells: ks.map(cell), note,
+    });
+    return [
+      row('L_\\mathrm{DC}', (k) => si(r.lDc[k], 'H'), 'static, ring model'),
+      row('|Z_{in}|', (k) => [si(abs(v[k].z), 'Ω'), `∠ ${deg(v[k].z).toFixed(1)}°`],
+        two ? 'other coil open' : undefined),
+      row('L_\\mathrm{eff}', (k) =>
+        v[k].lEff > 0
+          ? [si(v[k].lEff, 'H'), `${pct(v[k].lEff / r.lDc[k] - 1)} vs DC`]
+          : ['—', 'capacitive'],
+        v.some((c) => c.lEff <= 0) ? 'Im Z_in/ω; capacitive near or above a resonance' : 'Im Z_in/ω'),
+      row('R_\\mathrm{ac}', (k) => si(v[k].rAc, 'Ω'), 'skin effect × R factor'),
+      row('Q_L', (k) => g(v[k].qL), 'ωL_DC/R_ac: copper only'),
+      row('X/R\\ \\mathrm{of}\\ Z_{in}', (k) => (below ? g(v[k].z.im / v[k].z.re) : '—'),
+        below ? 'incl. dielectric loss' : 'not a Q: too close to resonance'),
+      row('f_\\mathrm{SRF}', (k) => [si(r.srfNet[k], 'Hz'), groundLabel(p[k ? 'b' : 'a'].ground)],
+        'coil alone'),
+      ...(ks.some(shifted)
+        ? [row('f_\\mathrm{res}', (k) => (shifted(k) ? si(r.srfHere[k], 'Hz') : '—'),
+            'other coil present (open)')]
+        : []),
+      row('Q_\\mathrm{SRF}', (k) => g(r.qSrf[k]), 'copper + dielectric loss'),
+      row('R_p', (k) => si(r.rpSrf[k], 'Ω', 3), 'at resonance'),
+      row('f_\\mathrm{SRF}^\\mathrm{no\\ dielectric}', (k) =>
+        Number.isFinite(r.srfVacuum[k])
+          ? [si(r.srfVacuum[k], 'Hz'), `${pct(r.srfNet[k] / r.srfVacuum[k] - 1)} with dielectric`]
+          : ['—', 'no dielectrics set'],
+        'no insulation, no former'),
+      row('f_\\mathrm{SRF}^\\mathrm{Medhurst}', (k) =>
+        [si(r.srfMedhurst[k], 'Hz'), `C = ${si(r.cMedhurst[k], 'F', 3)}`],
+        'estimate, bare wire'),
+      row('\\ell_\\mathrm{wire}', (k) =>
+        [si(r.coils[k].wire_length, 'm'), `${(r.coils[k].wire_length / lam).toFixed(3)} λ`]),
+      row('\\ell', (k) => `${(r.coils[k].length * 1e3).toFixed(1)} mm`, 'winding length'),
+      row('r', (k) => `${(r.coils[k].mean_radius * 1e3).toFixed(2)} mm`, 'mean radius'),
+    ];
   }
 
   function sections(r: Results): Section[] {
     const p = r.params;
-    const f = r.fView;
-    const w = 2 * Math.PI * f;
-    const lam = 299_792_458 / f;
-    const nc = r.coils.length;
     const i = r.iView;
-    // any resonance of the system shows up in every port's Z (through the coupling)
-    const fRes = nanmin([...r.srfNet, ...r.srfHere]);
-    const below = !Number.isFinite(fRes) || f < 0.5 * fRes;
-    const out: Section[] = r.coils.map((c, k) => {
-      const z = at(r.z, (i * nc + k) * nc + k);
-      const lEff = z.im / w;
-      const rAc = r.rF(k)[i];
-      const other = nc === 2 ? 'AB'[1 - k] : null;
-      const rows: Row[] = [
-        ['L_\\mathrm{DC}', si(r.lDc[k], 'H'), 'static, ring model'],
-        ['|Z_{in}|', si(abs(z), 'Ω'), `∠ ${deg(z).toFixed(1)}°${other ? `, coil ${other} open` : ''}`],
-        [
-          'L_\\mathrm{eff}=\\mathrm{Im}\\,Z_{in}/\\omega',
-          lEff > 0 ? si(lEff, 'H') : '—',
-          lEff > 0 ? `${pct(lEff / r.lDc[k] - 1)} vs DC` : 'capacitive: near/above a resonance',
-        ],
-        ['R_\\mathrm{ac}', si(rAc, 'Ω'), 'copper: skin effect × R factor'],
-        ['Q_L=\\omega L_\\mathrm{DC}/R_\\mathrm{ac}', g((w * r.lDc[k]) / rAc), 'copper only, far below resonance'],
-        [
-          'X/R\\ \\mathrm{of}\\ Z_{in}',
-          below ? g(z.im / z.re) : '—',
-          below ? 'incl. dielectric loss and resonance' : 'not a Q here: too close to resonance',
-        ],
-        ['f_\\mathrm{SRF}', si(r.srfNet[k], 'Hz'), `coil alone, ${groundLabel(p[k ? 'b' : 'a'].ground)}`],
-      ];
-      if (other && Number.isFinite(r.srfHere[k]) && Math.abs(r.srfHere[k] / r.srfNet[k] - 1) > 1e-3) {
-        rows.push(['f_\\mathrm{res}', si(r.srfHere[k], 'Hz'), `with coil ${other} present (open)`]);
-      }
-      rows.push(
-        [
-          'Q_\\mathrm{SRF}',
-          g(r.qSrf[k]),
-          `at resonance, copper + dielectric loss; R_p = ${si(r.rpSrf[k], 'Ω', 3)}`,
-        ],
-        [
-          'f_\\mathrm{SRF}^\\mathrm{no\\ dielectric}',
-          si(r.srfVacuum[k], 'Hz'),
-          Number.isFinite(r.srfVacuum[k])
-            ? `${pct(r.srfNet[k] / r.srfVacuum[k] - 1)} from insulation + former`
-            : 'no dielectrics set',
-        ],
-        [
-          'f_\\mathrm{SRF}^\\mathrm{Medhurst}',
-          si(r.srfMedhurst[k], 'Hz'),
-          `C = ${si(r.cMedhurst[k], 'F', 3)}, bare wire in air`,
-        ],
-        ['\\ell_\\mathrm{wire}/\\lambda', (c.wire_length / lam).toFixed(3), si(c.wire_length, 'm')],
-      );
-      return {
-        title: `Coil ${'AB'[k]}`,
-        sub: [
-          `${c.n_turns} turns · ℓ = ${(c.length * 1e3).toFixed(1)} mm · r = ${(c.mean_radius * 1e3).toFixed(2)} mm`,
-          dielectricLabel(p[k ? 'b' : 'a']),
-        ],
-        rows,
-      };
-    });
-
-    if (nc === 2) {
+    const w = 2 * Math.PI * r.fView;
+    const out: Section[] = [];
+    if (r.coils.length === 2) {
       const z21 = at(r.z, i * 4 + 2);
       const z22 = at(r.z, i * 4 + 3);
       const ratio = div(z21, { re: 0, im: w * r.mStatic });
@@ -126,7 +109,7 @@
     }
     out.push({
       title: 'VNA',
-      sub: [p.vna_setup],
+      sub: p.vna_setup,
       rows: [
         ...(['S_{11}', 'S_{21}', 'S_{22}'].map((s, j): Row => [s, `${db(sp[j])} dB`, `∠ ${deg(sp[j]).toFixed(1)}°`])),
         ['V^{+}', si(r.vPlus, 'V'), `peak, ${g(p.p_dbm, 6)} dBm into ${g(p.z0, 6)} Ω`],
@@ -138,28 +121,47 @@
     return out;
   }
 
+  const coil = $derived(coilRows(r));
   const secs = $derived(sections(r));
 </script>
 
-<p class="head">
-  View frequency <b>{si(r.fView, 'Hz')}</b> · λ = {g(299_792_458 / r.fView, 3)} m ·
-  {@html tex('\\omega = 2\\pi f')}
-</p>
-{#each r.warnings as w (w)}
-  <p class="warn">⚠ {w}</p>
-{/each}
 <div class="cols">
+<!-- svelte-ignore a11y_no_noninteractive_tabindex (a scrolling region must take keyboard focus) -->
+<div class="scroll" role="region" aria-label="Coil quantities at the view frequency" tabindex="0">
+  <table>
+    <thead>
+      <tr>
+        <td></td>
+        {#each r.coils as _, k (k)}<th scope="col">Coil {'AB'[k]}</th>{/each}
+        <td></td>
+      </tr>
+    </thead>
+    <tbody>
+      {#each coil as row (row.sym)}
+        <tr>
+          <th scope="row">{@html tex(row.sym)}</th>
+          {#each row.cells as cell, k (k)}
+            {#if typeof cell === 'string'}
+              <td class="value">{cell}</td>
+            {:else}
+              <td class="value">{cell[0]}<small>{cell[1]}</small></td>
+            {/if}
+          {/each}
+          <td class="muted">{row.note ?? ''}</td>
+        </tr>
+      {/each}
+    </tbody>
+  </table>
+</div>
   {#each secs as s (s.title)}
     <section>
       <h3>{s.title}</h3>
-      {#each s.sub ?? [] as line (line)}
-        <p class="muted">{line}</p>
-      {/each}
+      {#if s.sub}<p class="muted">{s.sub}</p>{/if}
       <table>
         <tbody>
           {#each s.rows as [sym, value, note] (sym)}
             <tr>
-              <td>{@html tex(sym)}</td>
+              <th scope="row">{@html tex(sym)}</th>
               <td class="value">{value}</td>
               <td class="muted">{note ?? ''}</td>
             </tr>
@@ -171,18 +173,36 @@
 </div>
 
 <style>
-  .head {
-    margin: 0 0 4px;
+  .scroll {
+    max-width: 100%;
+    overflow-x: auto;
   }
-  .warn {
-    margin: 2px 0;
-    color: var(--warn);
+  .scroll:focus-visible {
+    outline: 2px solid var(--accent);
+  }
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  thead th {
+    padding: 0 8px 2px 0;
+    text-align: right;
+  }
+  tbody th {
+    position: sticky;
+    inset-inline-start: 0;
+    padding: 1px 10px 1px 0;
+    font-weight: 400;
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+    background: var(--bg);
   }
   .cols {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 28px;
-    margin-top: 6px;
+    align-items: start;
+    gap: 12px 28px;
   }
   h3 {
     margin: 0;
@@ -196,12 +216,17 @@
   }
   td {
     padding: 1px 8px 1px 0;
-    vertical-align: middle;
+    vertical-align: top;
   }
   td.value {
     text-align: right;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  small {
+    display: block;
+    font-weight: 400;
+    color: var(--muted);
   }
 </style>

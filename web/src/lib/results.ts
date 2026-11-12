@@ -112,6 +112,15 @@ export function view(raw: Raw, params: Params) {
 }
 export type Results = ReturnType<typeof view>;
 
+/** Coil `k` at the view frequency: input impedance (other coil open) and what follows. */
+export function coilAtView(r: Results, k: number) {
+  const nc = r.coils.length;
+  const w = 2 * Math.PI * r.fView;
+  const z = at(r.z, (r.iView * nc + k) * nc + k);
+  const rAc = r.rF(k)[r.iView];
+  return { z, rAc, lEff: z.im / w, qL: (w * r.lDc[k]) / rAc };
+}
+
 /** Python's `format(x, f".{digits}g")`. */
 export function g(x: number, digits = 4): string {
   if (!Number.isFinite(x)) return '—';

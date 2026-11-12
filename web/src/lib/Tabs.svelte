@@ -32,10 +32,14 @@
     document.getElementById(id(tabs[(next + tabs.length) % tabs.length]))?.focus();
   }
 
-  // keep the selected tab visible when the row scrolls (also covers selection by script)
+  // keep the selected tab visible when the row scrolls (also covers selection by script);
+  // not on mount: several tab rows share a page, and it must not jump to the last one
+  let mounted = false;
   $effect(() => {
+    const el = document.getElementById(id(selected));
     const options = { block: 'nearest', inline: 'nearest', container: 'nearest' };
-    document.getElementById(id(selected))?.scrollIntoView(options as ScrollIntoViewOptions);
+    if (mounted) el?.scrollIntoView(options as ScrollIntoViewOptions);
+    mounted = true;
   });
 
   // edge fades without scroll-driven animations: mark the ends that have more tabs beyond

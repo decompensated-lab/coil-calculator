@@ -4,7 +4,7 @@
   import { BLUE, ORANGE, type Mark, type Panel, charts } from './plot';
   import { type Results, abs, at, div, g, mul } from './results';
 
-  let { r }: { r: Results } = $props();
+  let { r, onview }: { r: Results; onview: (mhz: number) => void } = $props();
 
   function panels(r: Results): Panel[] {
     const mhz = Array.from(r.freqs, (f) => f / 1e6);
@@ -24,13 +24,13 @@
           { label: 'quasi-static ωM', stroke: 'gray', width: 1.5, dash: [2, 4] },
           { label: `into ${g(r.params.z_load, 6)} Ω`, stroke: ORANGE, width: 1.5 },
         ],
-        height: 300, xLog: true, yLog: true, xHidden: true, xLabel: 'f [MHz]',
+        height: 240, xLog: true, yLog: true, xHidden: true, xLabel: 'f [MHz]',
         yLabel: '|V_B| per A in A [V/A]', marks,
       },
       {
         data: [mhz, z21.map((z, i) => abs(z) / qs[i])],
         series: [{ label: '|Z21| / ωM', stroke: BLUE, width: 1.5 }],
-        height: 170, xLog: true, xTicks: 'plain', yRange: [0, 3], xLabel: 'frequency [MHz]',
+        height: 150, xLog: true, xTicks: 'plain', yRange: [0, 3], xLabel: 'frequency [MHz]',
         yLabel: '|Z21| / ωM', marks: [...marks, { y: 1, color: 'muted', dash: [2, 4] }],
         legend: false,
       },
@@ -42,5 +42,5 @@
 {#if r.coils.length < 2}
   <p class="muted">Enable coil B for the transfer plot.</p>
 {:else}
-  <div class="chart" {@attach charts(panels(r), 'transfer')}></div>
+  <div class="chart" {@attach charts(panels(r), 'transfer', onview)}></div>
 {/if}

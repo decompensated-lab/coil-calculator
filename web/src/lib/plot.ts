@@ -1,6 +1,7 @@
 // Stacked uPlot panels with the app's styling (gui/plots.py `_style`): theme colours from CSS
 // variables, SI tick labels, marker lines/bands, a shared cursor, and resizing with the
-// container. Use as `{@attach charts(panels, key)}` on an empty element.
+// container. Use as `{@attach charts(panels, key)}` on an empty element. Legends go above
+// the panels; `onpick` gets the x value of a plain click (a drag still zooms).
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { g, si } from './results';
@@ -33,6 +34,8 @@ export interface Panel {
   yLabel?: string;
   /** Hide the x tick labels (upper panel of a shared-x stack). */
   xHidden?: boolean;
+  /** Only whole-number x ticks (turn numbers). */
+  xInt?: boolean;
   /** Tick labels: SI prefixes (default for log axes) or plain numbers. */
   xTicks?: 'si' | 'plain';
   yTicks?: 'si' | 'plain';
@@ -44,13 +47,15 @@ export interface Panel {
 const ticks = (kind: 'si' | 'plain') => (_u: uPlot, v: number[]) =>
   v.map((x) => (x == null ? '' : kind === 'si' ? si(x, '', 3).trim() : g(x, 4)));
 
-export function charts(panels: Panel[], syncKey?: string) {
+export function charts(panels: Panel[], syncKey?: string, onpick?: (x: number) => void) {
   return (node: HTMLElement) => {
     const css = getComputedStyle(node);
     const muted = css.getPropertyValue('--muted').trim();
     const grid = css.getPropertyValue('--grid').trim();
     const ink = css.getPropertyValue('--ink').trim();
     const axis = { stroke: muted, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid } };
+    const legends = document.createElement('div');
+    node.append(legends);
     const plots = panels.map((p) => {
       const draw = (u: uPlot) => {
         const { ctx, bbox } = u;
@@ -107,7 +112,7 @@ export function charts(panels: Panel[], syncKey?: string) {
         height: p.height,
         title: p.title,
         cursor: syncKey ? { sync: { key: syncKey } } : {},
-        legend: { show: p.legend ?? true },
+        legend: { show: p.legend ?? true, mount: (_u, el) => legends.append(el) },
         // the data range exactly (uPlot would round a log range out to whole decades)
         scales: {
           x: { time: false, distr: p.xLog ? 3 : 1, range: exact },
@@ -117,13 +122,28 @@ export function charts(panels: Panel[], syncKey?: string) {
         },
         series: [{ label: p.xLabel?.replace(/\s*\(.*\)$/, '') ?? 'x' }, ...p.series],
         axes: [
-          { ...axis, label: p.xHidden ? undefined : p.xLabel, values: p.xHidden ? (_u, v) => v.map(() => '') : ticks(xKind) },
+          {
+            ...axis,
+            size: p.xHidden ? 10 : 32,
+            labelSize: 24,
+            label: p.xHidden ? undefined : p.xLabel,
+            values: p.xHidden ? (_u, v) => v.map(() => '') : ticks(xKind),
+            ...(p.xInt ? { incrs: [1, 2, 5, 10, 20, 50, 100] } : {}),
+          },
           { ...axis, label: p.yLabel, values: ticks(yKind), size: 64 },
         ],
         hooks: { draw: [draw] },
       };
       const u = new uPlot(opts, p.data as uPlot.AlignedData, node);
       u.root.style.color = ink;
+      if (onpick) {
+        let down = 0;
+        u.over.style.cursor = 'pointer';
+        u.over.addEventListener('mousedown', (e) => (down = e.clientX));
+        u.over.addEventListener('click', (e) => {
+          if (Math.abs(e.clientX - down) < 3) onpick(u.posToVal(u.cursor.left!, 'x'));
+        });
+      }
       return u;
     });
     const ro = new ResizeObserver(() => {
@@ -133,6 +153,7 @@ export function charts(panels: Panel[], syncKey?: string) {
     return () => {
       ro.disconnect();
       plots.forEach((u) => u.destroy());
+      legends.remove();
     };
   };
 }

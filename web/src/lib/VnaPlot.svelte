@@ -1,10 +1,11 @@
-<!-- S-parameters of the selected VNA setup: |S| in dB, phase and a Smith chart
+<!-- S-parameters of the selected VNA setup: |S| in dB and phase, or (`smith`) a Smith chart
      (gui/plots.py draw_vna and smith_grid). -->
 <script lang="ts">
   import { AQUA, BLUE, ORANGE, type Panel, charts } from './plot';
   import { type Results, abs, at, deg, g } from './results';
 
-  let { r }: { r: Results } = $props();
+  let { r, smith: chart = false, onview }: { r: Results; smith?: boolean; onview: (mhz: number) => void } =
+    $props();
 
   const R = [0.2, 0.5, 1, 2, 5]; // constant-r circles and constant-x arcs of the grid
 
@@ -27,12 +28,12 @@
     return [
       {
         data: [mhz, ...t.map((x) => x.s.map((s) => 20 * Math.log10(Math.max(abs(s), 1e-15))))],
-        series, height: 240, xLog: true, xHidden: true, xLabel: 'f [MHz]', yLabel: '|S| [dB]',
+        series, height: 220, xLog: true, xHidden: true, xLabel: 'f [MHz]', yLabel: '|S| [dB]',
         marks,
       },
       {
         data: [mhz, ...t.map((x) => x.s.map(deg))],
-        series: series.map((s) => ({ ...s })), height: 220, xLog: true, xTicks: 'plain',
+        series: series.map((s) => ({ ...s })), height: 170, xLog: true, xTicks: 'plain',
         yRange: [-185, 185], xLabel: 'frequency [MHz]', yLabel: 'phase [°]', marks,
         legend: false,
       },
@@ -51,8 +52,9 @@
 </script>
 
 <h3 class="plot-title">{r.params.vna_setup}, Z0 = {g(r.params.z0, 6)} Ω</h3>
-<div class="vna">
-  <div class="chart" {@attach charts(panels(r), 'vna')}></div>
+{#if !chart}
+  <div class="chart" {@attach charts(panels(r), 'vna', onview)}></div>
+{:else}
   <figure>
     <svg viewBox="-1.08 -1.08 2.16 2.16" role="img" aria-labelledby="smith-caption">
       <defs>
@@ -79,21 +81,16 @@
       {#each smith as t (t.name)}<span class="key" style:color={t.color}>{t.name}</span>{/each}
     </figcaption>
   </figure>
-</div>
+{/if}
 
 <style>
-  .vna {
-    display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
   figure {
     margin: 0;
   }
   svg {
+    display: block;
     width: 100%;
-    max-height: 480px;
+    max-height: 420px;
     overflow: visible;
   }
   svg circle,
@@ -123,10 +120,5 @@
   figcaption {
     text-align: center;
     color: var(--muted);
-  }
-  @media (max-width: 900px) {
-    .vna {
-      grid-template-columns: minmax(0, 1fr);
-    }
   }
 </style>
