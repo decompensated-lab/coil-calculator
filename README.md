@@ -152,7 +152,8 @@ Instead of one tab at a time it is a dashboard: the key numbers stay on top, and
 or field picture, a frequency sweep, a snapshot at the view frequency and the full table
 (one column per coil) are visible together. Both coils are entered side by side. A click in
 a sweep plot sets the view frequency; the side view reads |B| under the pointer, and a click
-there moves the height of the Bz(x) cut. The wire-pair calculator is a separate mode.
+there moves the height of the Bz(x) cut. Each panel folds away by its heading or expands to
+the whole results area (Escape restores). The wire-pair calculator is a separate mode.
 
 ```bash
 cd web && pnpm install && pnpm dev   # needs the Rust toolchain in rust/rust-toolchain.toml

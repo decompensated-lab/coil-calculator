@@ -1,6 +1,7 @@
 <script lang="ts">
   import { MediaQuery } from 'svelte/reactivity';
   import BzProfiles from './lib/BzProfiles.svelte';
+  import Card from './lib/Card.svelte';
   import Choice from './lib/Choice.svelte';
   import CoilTable from './lib/CoilTable.svelte';
   import { Computer } from './lib/compute.svelte';
@@ -33,6 +34,12 @@
   let sweep: string = $state(SWEEP[0]);
   let snapshot: string = $state(SNAPSHOT[0]);
   let fill: Fill = $state('|I|');
+  /** Title of the expanded card, if any; the others are hidden meanwhile. */
+  let maxed: string | null = $state(null);
+  const size = (title: string) => ({
+    max: maxed === title,
+    onmax: () => (maxed = maxed === title ? null : title),
+  });
   // the wire-pair calculator is stand-alone: it brings its own inputs and results
   let mode = $state<'coils' | 'pair'>('coils');
 
@@ -62,6 +69,13 @@
     return () => clearTimeout(t);
   });
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    // Escape restores the grid (but leave it to an open dialog)
+    if (e.key === 'Escape' && !document.querySelector('dialog[open]')) maxed = null;
+  }}
+/>
 
 <div class="app">
   <header>
@@ -153,8 +167,7 @@
         {/if}
       </div>
       <div class="cards">
-        <section class="card">
-          <h2>Geometry and field</h2>
+        <Card title="Geometry and field" {...size('geometry')}>
           <Tabs tabs={GEOMETRY} bind:selected={geometry} label="Geometry and field" tips={TIPS}>
             {#snippet panel()}
               {#if geometry === 'Side view'}
@@ -164,9 +177,9 @@
               {/if}
             {/snippet}
           </Tabs>
-        </section>
-        <section class="card">
-          <h2>Frequency sweep <span>click a plot to set the view frequency</span></h2>
+        </Card>
+        <Card title="Frequency sweep" hint="click a plot to set the view frequency"
+          {...size('sweep')}>
           <Tabs tabs={SWEEP} bind:selected={sweep} label="Frequency sweep" tips={TIPS}>
             {#snippet panel()}
               {#if sweep === 'Impedance'}
@@ -178,9 +191,8 @@
               {/if}
             {/snippet}
           </Tabs>
-        </section>
-        <section class="card">
-          <h2>At {si(r.fView, 'Hz')}</h2>
+        </Card>
+        <Card title="At {si(r.fView, 'Hz')}" {...size('snapshot')}>
           <Tabs tabs={SNAPSHOT} bind:selected={snapshot} label="At the view frequency" tips={TIPS}>
             {#snippet panel()}
               {#if snapshot === 'Turn currents'}
@@ -190,11 +202,11 @@
               {/if}
             {/snippet}
           </Tabs>
-        </section>
-        <section class={['card', 'summary', { stale }]}>
-          <h2>Numbers at {si(r.fView, 'Hz')}</h2>
+        </Card>
+        <Card title="Numbers at {si(r.fView, 'Hz')}" class={['summary', { stale }]}
+          {...size('numbers')}>
           <Summary {r} />
-        </section>
+        </Card>
       </div>
     {:else if !computer.error}
       <p class="muted">Loading the model…</p>
@@ -316,37 +328,23 @@
     gap: 12px;
     align-items: start;
   }
-  .card {
-    min-width: 0;
-    padding: 8px 12px 12px;
-    border: 1px solid var(--grid);
-    border-radius: 8px;
+  /* an expanded card is alone in the grid */
+  .cards:has(> :global(.max)) > :global(:not(.max)) {
+    display: none;
   }
   /* three columns: the table takes the two free ones of the second row */
   @container (min-width: 1224px) {
-    .card.summary {
+    .cards > :global(.summary:not(.folded, .max)) {
       grid-column: span 2;
     }
-  }
-  h2 {
-    margin: 0;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  h2 span {
-    margin-left: 0.8em;
-    font-weight: 400;
-    letter-spacing: 0;
-    text-transform: none;
   }
   .summary.pair {
     margin-top: 12px;
     padding-top: 10px;
     border-top: 1px solid var(--grid);
   }
-  .stale {
+  .stale,
+  .cards > :global(.stale) {
     opacity: 0.55;
   }
   .banner {

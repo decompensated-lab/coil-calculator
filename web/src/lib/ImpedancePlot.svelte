@@ -43,4 +43,4 @@
 <h3 class="plot-title">
   Input impedance (other coil open) — dotted: quasi-DC R(f)+jωL(f), dashed: SRF
 </h3>
-<div class="chart" {@attach charts(panels(r), 'impedance', onview)}></div>
+<div class="chart" {@attach charts(panels(r), { sync: 'impedance', onpick: onview })}></div>

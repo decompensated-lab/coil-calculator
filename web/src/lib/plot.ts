@@ -1,7 +1,8 @@
 // Stacked uPlot panels with the app's styling (gui/plots.py `_style`): theme colours from CSS
 // variables, SI tick labels, marker lines/bands, a shared cursor, and resizing with the
-// container. Use as `{@attach charts(panels, key)}` on an empty element. Legends go above
-// the panels; `onpick` gets the x value of a plain click (a drag still zooms).
+// container. Use as `{@attach charts(panels, options)}` on an empty element. Legends go above
+// the panels and their hover values have a fixed format and width, so nothing moves under
+// the cursor. In an expanded card (class `max`) the panels stretch to fill the window.
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { g, si } from './results';
@@ -46,14 +47,31 @@ export interface Panel {
 
 const ticks = (kind: 'si' | 'plain') => (_u: uPlot, v: number[]) =>
   v.map((x) => (x == null ? '' : kind === 'si' ? si(x, '', 3).trim() : g(x, 4)));
+/** Legend value under the cursor, in the notation of the axis. */
+const value = (kind: 'si' | 'plain') => (_u: uPlot, v: number | null) =>
+  v == null ? '--' : kind === 'si' ? si(v, '', 4).trim() : g(v, 4);
 
-export function charts(panels: Panel[], syncKey?: string, onpick?: (x: number) => void) {
+export interface ChartOptions {
+  /** Panels with the same key share the cursor. */
+  sync?: string;
+  /** Gets the x value of a plain click (a drag still zooms, a double click resets). */
+  onpick?: (x: number) => void;
+  /** Share of the window height these panels get in an expanded card. */
+  share?: number;
+}
+
+export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOptions = {}) {
   return (node: HTMLElement) => {
     const css = getComputedStyle(node);
     const muted = css.getPropertyValue('--muted').trim();
     const grid = css.getPropertyValue('--grid').trim();
     const ink = css.getPropertyValue('--ink').trim();
     const axis = { stroke: muted, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid } };
+    const total = panels.reduce((sum, p) => sum + p.height, 0);
+    const height = (p: Panel) => {
+      const fill = node.closest('.max') ? (share * (innerHeight - 300)) / total : 1;
+      return Math.round(p.height * Math.max(fill, 1));
+    };
     const legends = document.createElement('div');
     node.append(legends);
     const plots = panels.map((p) => {
@@ -109,9 +127,9 @@ export function charts(panels: Panel[], syncKey?: string, onpick?: (x: number) =
       const exact = (_u: uPlot, lo: number, hi: number): uPlot.Range.MinMax => [lo, hi];
       const opts: uPlot.Options = {
         width: node.clientWidth,
-        height: p.height,
+        height: height(p),
         title: p.title,
-        cursor: syncKey ? { sync: { key: syncKey } } : {},
+        cursor: sync ? { sync: { key: sync } } : {},
         legend: { show: p.legend ?? true, mount: (_u, el) => legends.append(el) },
         // the data range exactly (uPlot would round a log range out to whole decades)
         scales: {
@@ -120,7 +138,10 @@ export function charts(panels: Panel[], syncKey?: string, onpick?: (x: number) =
             ? { auto: false, range: p.yRange, distr: p.yLog ? 3 : 1 }
             : { distr: p.yLog ? 3 : 1 },
         },
-        series: [{ label: p.xLabel?.replace(/\s*\(.*\)$/, '') ?? 'x' }, ...p.series],
+        series: [
+          { label: p.xLabel?.replace(/\s*\(.*\)$/, '') ?? 'x', value: value(xKind) },
+          ...p.series.map((s) => ({ value: value(yKind), ...s })),
+        ],
         axes: [
           {
             ...axis,
@@ -137,17 +158,22 @@ export function charts(panels: Panel[], syncKey?: string, onpick?: (x: number) =
       const u = new uPlot(opts, p.data as uPlot.AlignedData, node);
       u.root.style.color = ink;
       if (onpick) {
+        // a plain click picks; wait out a possible double click (it resets the zoom)
         let down = 0;
+        let timer = 0;
         u.over.style.cursor = 'pointer';
         u.over.addEventListener('mousedown', (e) => (down = e.clientX));
         u.over.addEventListener('click', (e) => {
-          if (Math.abs(e.clientX - down) < 3) onpick(u.posToVal(u.cursor.left!, 'x'));
+          clearTimeout(timer);
+          if (e.detail > 1 || Math.abs(e.clientX - down) >= 3) return;
+          const x = u.posToVal(u.cursor.left!, 'x');
+          timer = setTimeout(() => onpick(x), 250);
         });
       }
       return u;
     });
     const ro = new ResizeObserver(() => {
-      plots.forEach((u, i) => u.setSize({ width: node.clientWidth, height: panels[i].height }));
+      plots.forEach((u, i) => u.setSize({ width: node.clientWidth, height: height(panels[i]) }));
     });
     ro.observe(node);
     return () => {

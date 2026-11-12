@@ -53,7 +53,7 @@
 
 <h3 class="plot-title">{r.params.vna_setup}, Z0 = {g(r.params.z0, 6)} Ω</h3>
 {#if !chart}
-  <div class="chart" {@attach charts(panels(r), 'vna', onview)}></div>
+  <div class="chart" {@attach charts(panels(r), { sync: 'vna', onpick: onview })}></div>
 {:else}
   <figure>
     <svg viewBox="-1.08 -1.08 2.16 2.16" role="img" aria-labelledby="smith-caption">

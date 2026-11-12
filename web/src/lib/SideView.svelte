@@ -119,8 +119,9 @@
 </Frame>
 <p class="readout muted">
   {#if hover}
-    x = {hover.x.toFixed(1)} mm, z = {hover.y.toFixed(1)} mm:
-    <b>|B| = {si(v.probe(hover.x, hover.y) * 1e-6, 'T', 3)}</b> peak
+    x = <span class="n">{hover.x.toFixed(1)}</span> mm, z =
+    <span class="n">{hover.y.toFixed(1)}</span> mm:
+    <b>|B| = <span class="n">{si(v.probe(hover.x, hover.y) * 1e-6, 'T', 3)}</span></b> peak
   {:else}
     Point at the map to read |B|; click to move the B<sub>z</sub>(x) cut (dashed).
   {/if}
@@ -164,5 +165,11 @@
   }
   .readout b {
     color: var(--ink);
+  }
+  /* fixed-width numbers: the line does not shift while the pointer moves */
+  .n {
+    display: inline-block;
+    min-width: 6ch;
+    text-align: right;
   }
 </style>
