@@ -4,7 +4,7 @@
 static B / L / M, a turn-level circuit model with turn-to-turn capacitance (insulation and
 former dielectrics), VNA S-parameters, and a 2-D insulated wire-pair calculator. Python 3.12,
 numpy/scipy, magpylib, matplotlib, PySide6-Essentials. User-facing docs: `README.md`.
-On branch `wasm-rewrite` the app is being ported to the browser (Rust → WASM in `rust/`,
+The app also runs in the browser (Rust → WASM in `rust/`,
 Svelte in `web/`); the Python code stays the reference. State of that work: `HANDOFF.md`
 (untracked, if present).
 

@@ -142,7 +142,7 @@ r.capacitance, r.tan_delta                               # 44.4 pF/m, effective 
 Warnings flag a view frequency near a resonance, a tight pitch with no proximity correction
 (R factor = 1), and l/D outside Medhurst's fitted range.
 
-## Browser app (work in progress, branch `wasm-rewrite`)
+## Browser app
 
 The same app, running in the browser with no server: the model is ported to Rust and compiled
 to WebAssembly, and the interface is a Svelte page with every plot of the Qt GUI.
