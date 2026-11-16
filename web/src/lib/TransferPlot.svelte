@@ -1,7 +1,7 @@
 <!-- A → B transfer: |Z21| against the quasi-static ωM and the voltage into the load
      (gui/plots.py draw_transfer). -->
 <script lang="ts">
-  import { BLUE, ORANGE, type Mark, type Panel, charts } from './plot';
+  import { DASH, DOTTED, GRAY, INK, MAGENTA, type Mark, type Panel, charts } from './plot';
   import { type Results, abs, at, div, g, mul } from './results';
 
   let { r, onview }: { r: Results; onview: (mhz: number) => void } = $props();
@@ -20,18 +20,18 @@
       {
         data: [mhz, z21.map(abs), qs, vl],
         series: [
-          { label: 'network |Z21| (B open)', stroke: BLUE, width: 1.5 },
-          { label: 'quasi-static ωM', stroke: 'gray', width: 1.5, dash: [2, 4] },
-          { label: `into ${g(r.params.z_load, 6)} Ω`, stroke: ORANGE, width: 1.5 },
+          { label: 'network |Z21| (B open)', stroke: INK, width: 1.5 },
+          { label: 'quasi-static ωM', stroke: GRAY, width: 1.5, dash: DOTTED },
+          { label: `into ${g(r.params.z_load, 6)} Ω`, stroke: MAGENTA, width: 1.5, dash: DASH },
         ],
-        height: 240, xLog: true, yLog: true, xHidden: true, xLabel: 'f [MHz]',
-        yLabel: '|V_B| per A in A [V/A]', marks,
+        height: 225, xLog: true, yLog: true, xHidden: true, xLabel: 'f [MHz]',
+        yLabel: '|V_B|/I_A [V/A]', marks,
       },
       {
         data: [mhz, z21.map((z, i) => abs(z) / qs[i])],
-        series: [{ label: '|Z21| / ωM', stroke: BLUE, width: 1.5 }],
-        height: 150, xLog: true, xTicks: 'plain', yRange: [0, 3], xLabel: 'frequency [MHz]',
-        yLabel: '|Z21| / ωM', marks: [...marks, { y: 1, color: 'muted', dash: [2, 4] }],
+        series: [{ label: '|Z21| / ωM', stroke: INK, width: 1.5 }],
+        height: 165, xLog: true, xTicks: 'plain', yRange: [0, 3], xLabel: 'frequency [MHz]',
+        yLabel: '|Z21|/ωM', marks: [...marks, { y: 1, color: 'muted', dash: DOTTED }],
         legend: false,
       },
     ];

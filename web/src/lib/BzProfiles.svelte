@@ -1,10 +1,10 @@
 <!-- Bz along A's axis and across the coils (gui/plots.py draw_bz_profiles): the in-phase part,
      referenced to the phase of Bz at the on-axis maximum, so return flux keeps its sign.
-     Dotted: the same coils with their mean turn current (quasi-DC shape). -->
+     Dotted: the same coils with a uniform current, their mean turn current (quasi-DC shape). -->
 <script lang="ts">
   import Num from './Num.svelte';
   import type { Arr } from './protocol';
-  import { BLUE, COIL_COLORS, type Mark, type Panel, charts, coilName } from './plot';
+  import { COIL_COLORS, DASH, DOTTED, GRAY, INK, type Mark, type Panel, charts, coilName } from './plot';
   import { type Results, at, g, mul, si, driveLabel } from './results';
 
   let { r, cutZ = $bindable() }: { r: Results; cutZ: number } = $props();
@@ -45,25 +45,27 @@
         alpha: 0.6,
       })),
     );
-    const series = (uniform: string) => [
-      { label: 'network currents', stroke: BLUE, width: 1.5 },
-      { label: uniform, stroke: 'gray', width: 1.5, dash: [2, 4] },
+    const series = () => [
+      { label: 'network currents', stroke: INK, width: 1.5 },
+      { label: 'mean turn current', stroke: GRAY, width: 1.5, dash: DOTTED },
     ];
     const panels: Panel[] = [
       {
         data: [Array.from(r.lineZ, (z) => z * 1e3), inphase(r.bzZ), inphase(r.bzZUniform)],
-        series: series('uniform current (mean turn current)'),
+        series: series(),
         height: 190,
-        xLabel: 'z along coil A axis [mm]  (dashed: height of the Bz(x) cut)',
-        yLabel: 'B_z in-phase [µT peak]',
-        marks: [...bands, { x: zCut, color: 'muted', dash: [6, 4] }, zero],
+        xName: 'z [mm]',
+        xLabel: 'z along coil A axis [mm]  (dashed: height of the B_z(x) cut)',
+        yLabel: 'B_z [µT peak]',
+        marks: [...bands, { x: zCut, color: 'muted', dash: DASH }, zero],
       },
       {
         data: [Array.from(r.lineX, (x) => x * 1e3), inphase(r.bzX), inphase(r.bzXUniform)],
-        series: series('uniform current'),
+        series: series(),
         height: 190,
+        xName: 'x [mm]',
         xLabel: `x [mm] at z = ${g(zCut, 6)} mm  (vertical lines: winding radii)`,
-        yLabel: 'B_z in-phase [µT peak]',
+        yLabel: 'B_z [µT peak]',
         marks: [...radii, zero],
       },
     ];
@@ -73,26 +75,32 @@
   const v = $derived(view(r));
 </script>
 
-<h3 class="plot-title">
-  B<sub>z</sub> on the axis — {r.params.vna_setup}, {driveLabel(r)} at P1, {si(r.fView, 'Hz')}
-  (quadrature part ≤ {(100 * v.quad).toFixed(1)}% of peak)
-</h3>
-<div class="chart" {@attach charts(v.panels.slice(0, 1), { share: 0.45 })}></div>
-<div class="across">
-  <h3 class="plot-title">B<sub>z</sub> across the coils</h3>
-  <Num label="at z" tip="x_line_z" bind:value={cutZ} unit="mm" step={1} />
+<div class="head">
+  <h3 class="plot-title">
+    In-phase B<sub>z</sub> — {r.params.vna_setup}, {driveLabel(r)} at P1, {si(r.fView, 'Hz')}
+    (quadrature part ≤ {(100 * v.quad).toFixed(1)}% of peak)
+  </h3>
+  <div class="props one">
+    <Num label="cut at z" tip="x_line_z" bind:value={cutZ} unit="mm" step={1} />
+  </div>
 </div>
-<div class="chart" {@attach charts(v.panels.slice(1), { share: 0.45 })}></div>
+<div class="chart" {@attach charts(v.panels)}></div>
 
 <style>
-  .across {
+  .head {
     display: flex;
-    align-items: center;
+    flex: none;
+    align-items: start;
     justify-content: space-between;
     gap: 12px;
-    margin-top: 6px;
+    margin-bottom: 2px;
   }
-  .across :global(.row) {
-    grid-template-columns: auto 6em;
+  .head .plot-title {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .head .props {
+    flex: none;
+    grid-template-columns: auto 5em auto;
   }
 </style>

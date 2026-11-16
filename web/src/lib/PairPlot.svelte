@@ -3,7 +3,7 @@
 <script lang="ts">
   import { contour, decades, heatmap, logNorm, percentile } from './fieldplot';
   import Frame from './Frame.svelte';
-  import { AQUA, BLUE, ORANGE, type Panel, charts } from './plot';
+  import { DASH, DASH_DOT, DOTTED, GRAY, INK, MAGENTA, TEAL, type Panel, charts } from './plot';
   import { type PairResults, g } from './results';
 
   let { r }: { r: PairResults } = $props();
@@ -57,14 +57,14 @@
       {
         data: [Array.from(r.gap, (v) => v * 1e3), pf(r.sweepExact), ...uniform, pf(r.sweepEff), pf(r.sweepBare)],
         series: [
-          { label: 'insulated, in air (exact)', stroke: BLUE, width: 2 },
-          ...(uniform.length ? [{ label: 'all space filled, εr', stroke: ORANGE, width: 1.5, dash: [6, 4] }] : []),
-          { label: 'effective-radius approx.', stroke: AQUA, width: 1.5, dash: [6, 3, 2, 3] },
-          { label: 'bare conductors, air', stroke: 'gray', width: 1.5, dash: [2, 4] },
+          { label: 'insulated, in air (exact)', stroke: INK, width: 2 },
+          ...(uniform.length ? [{ label: 'all space filled, εr', stroke: MAGENTA, width: 1.5, dash: DASH }] : []),
+          { label: 'effective-radius approx.', stroke: TEAL, width: 1.5, dash: DASH_DOT },
+          { label: 'bare conductors, air', stroke: GRAY, width: 1.5, dash: DOTTED },
         ],
         height: 340, yLog: true, yTicks: 'plain', xLabel: 'insulation surface gap [mm]',
         yLabel: 'C′ [pF/m]',
-        marks: [{ x: gNow, color: 'muted' }, { x: gNow, y: r.c.re * 1e12, color: BLUE }],
+        marks: [{ x: gNow, color: 'muted' }, { x: gNow, y: r.c.re * 1e12, color: INK }],
       },
     ];
   }
@@ -98,31 +98,40 @@
 <style>
   .pair {
     display: grid;
+    flex: 1;
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-    gap: 20px;
-    align-items: start;
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 16px;
+    min-height: 0;
+    padding: 6px 8px;
+  }
+  .pair > div {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
   .equi {
     fill: none;
-    stroke: var(--muted);
+    stroke: var(--dim);
     stroke-width: 0.6px;
     vector-effect: non-scaling-stroke;
   }
   .sleeve {
     fill: none;
-    stroke: #eb6834;
-    stroke-width: 1.4px;
+    stroke: var(--fg);
+    stroke-width: 1px;
     vector-effect: non-scaling-stroke;
   }
   .conductor {
     fill: #b87333;
-    stroke: var(--ink);
-    stroke-width: 0.8px;
+    stroke: var(--fg);
+    stroke-width: 1px;
     vector-effect: non-scaling-stroke;
   }
   @media (max-width: 1000px) {
     .pair {
       grid-template-columns: minmax(0, 1fr);
+      grid-auto-rows: auto;
     }
   }
 </style>

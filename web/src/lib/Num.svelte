@@ -1,4 +1,5 @@
-<!-- Labelled number input. An empty field binds null; the model rejects it as "not a number". -->
+<!-- Labelled number input: one row of a `.props` grid (name, field, unit). An empty field
+     binds null; the model rejects it as "not a number". -->
 <script lang="ts">
   import { TIPS } from './help';
 
@@ -25,10 +26,8 @@
   } = $props();
 </script>
 
-<label class={['row', { off: disabled }]} title={TIPS[tip]}>
-  <span class="name">{label}</span>
-  <span class="field">
-    <input type="number" placeholder=" " bind:value {step} {min} {max} {disabled} {oninput} />
-    {#if unit}<span class="unit">{unit}</span>{/if}
-  </span>
+<label title={TIPS[tip]}>
+  <span>{label}</span>
+  <input type="number" placeholder=" " bind:value {step} {min} {max} {disabled} {oninput} />
+  {#if unit}<span>{unit}</span>{/if}
 </label>

@@ -170,8 +170,8 @@ A. S = (Z − Z0)(Z + Z0)<sup>−1</sup>.</p>
 <p>coilcal was inspired by <a href="https://coil32.net">Coil64</a> and its predecessor Coil32,
 and describes a coil the way they do. The Python library and desktop app are built on NumPy,
 SciPy, Magpylib, Matplotlib and Qt for Python. The browser app is built on Svelte, uPlot and
-KaTeX; its model is a Rust port of the Python code and includes routines ported from Magpylib
-and SciPy.</p>
+KaTeX and set in JetBrains Mono; its model is a Rust port of the Python code and includes
+routines ported from Magpylib and SciPy.</p>
 <p>The methods go back to Maxwell (coaxial-loop mutual inductance), Nagaoka and Rosa
 (current-sheet inductance and round-wire corrections, with Knight's fit), Wheeler, Medhurst
 (empirical self-capacitance), Singer, Steinbigler and Weiss (charge simulation), and Ortner,

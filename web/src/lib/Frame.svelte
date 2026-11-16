@@ -1,7 +1,10 @@
 <!-- Equal-aspect plot frame in data coordinates (y up): axes with ticks and labels, a clip
      region for the content, and an optional colour bar. Content is drawn by the `children`
-     snippet in data coordinates (it is placed under a y flip). `onprobe` reports the data
-     point under the pointer (null outside the axes), `onpick` a click or tap on one. -->
+     snippet in data coordinates (it is placed under a y flip). The drawing is fitted into
+     the box the frame is given: it shares the free height of its panel and never goes below
+     a share of `height` (app.css `--chart-k`), or below what its width can show if that is
+     less. `onprobe` reports the data point under the
+     pointer (null outside the axes), `onpick` a click or tap on one. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { blues, css, ticks } from './fieldplot';
@@ -21,7 +24,7 @@
     yLabel,
     colorbar,
     label,
-    maxHeight = 0.7,
+    height = 400,
     onprobe,
     onpick,
     children,
@@ -35,8 +38,8 @@
     colorbar?: ColorBar;
     /** Accessible description of the plot. */
     label: string;
-    /** Height limit as a fraction of the viewport height. */
-    maxHeight?: number;
+    /** Natural height of the frame [px]. */
+    height?: number;
     onprobe?: (point: { x: number; y: number } | null) => void;
     onpick?: (point: { x: number; y: number }) => void;
     children: Snippet;
@@ -45,26 +48,33 @@
   const uid = $props.id();
   const W = $derived(x1 - x0);
   const H = $derived(y1 - y0);
-  // font size in data units that renders at FONT_PX: the drawing scales with the element,
-  // which is limited by its width and by maxHeight; margins grow with f, so iterate
-  const FONT_PX = 12;
+  // font size in data units that renders at FONT_PX: the drawing is fitted into the box,
+  // and the margins grow with f, so iterate
+  const FONT_PX = 11;
+  const ML = 5.2; // left margin / f: tick labels of five monospace characters, and the label
   let width = $state(0);
-  let innerHeight = $state(0);
-  const kx = $derived(4.2 + (colorbar ? 7.5 : 1.2)); // left + right margin / f
+  let boxHeight = $state(0);
+  const kx = $derived(ML + (colorbar ? 7.8 : 1.2)); // left + right margin / f
   const ky = 4.0; // top + bottom margin / f
   const f = $derived.by(() => {
     let f = Math.max(W, 0.6 * H) / 56;
-    if (!width) return f;
+    if (!width || !boxHeight) return f;
     for (let i = 0; i < 4; i++) {
-      const scale = Math.min(width / (W + kx * f), (maxHeight * innerHeight) / (H + ky * f));
+      const scale = Math.min(width / (W + kx * f), boxHeight / (H + ky * f));
       f = FONT_PX / scale;
     }
     return f;
   });
-  const ml = $derived(4.2 * f);
+  // height of the drawing when only the width limits it (f then follows from the width alone)
+  const natural = $derived.by(() => {
+    if (width <= 2 * FONT_PX * kx) return 0;
+    const fw = (FONT_PX * W) / (width - FONT_PX * kx);
+    return Math.ceil(((H + ky * fw) * FONT_PX) / fw);
+  });
+  const ml = $derived(ML * f);
   const mb = $derived(3.2 * f);
   const mt = $derived(0.8 * f);
-  const mr = $derived((kx - 4.2) * f);
+  const mr = $derived((kx - ML) * f);
   const xt = $derived(ticks(x0, x1, Math.max(3, Math.round(W / (6 * f)))));
   const yt = $derived(ticks(y0, y1, Math.max(2, Math.round(H / (3 * f)))));
   const fmt = (v: number) => Number(v.toPrecision(6)).toString();
@@ -83,18 +93,17 @@
   }
 </script>
 
-<svelte:window bind:innerHeight />
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions
      (pointer extras: the readout is supplementary and what a click sets also has an input) -->
+<div class="frame" style:--frame-h={height} style:--frame-natural="{natural}px"
+  bind:clientWidth={width} bind:clientHeight={boxHeight}>
 <svg
-  bind:clientWidth={width}
   class={{ live: onprobe || onpick }}
   onpointermove={onprobe && ((e) => onprobe(locate(e)))}
   onpointerdown={onprobe && ((e) => onprobe(locate(e)))}
   onpointerleave={onprobe && (() => onprobe(null))}
   onclick={onpick && pick}
   viewBox="{x0 - ml} {-y1 - mt} {W + ml + mr} {H + mt + mb}"
-  style:max-height="{maxHeight * 100}vh"
   role="img"
   aria-label={label}
   font-size={f}
@@ -121,39 +130,47 @@
       <text x={x0 - 0.7 * f} y={-v + 0.35 * f} text-anchor="end">{fmt(v)}</text>
     {/each}
     <text class="label" x={x0 + W / 2} y={-y0 + 2.9 * f} text-anchor="middle">{xLabel}</text>
-    <text class="label" transform="translate({x0 - 3.6 * f} {-y0 - H / 2}) rotate(-90)"
+    <text class="label" transform="translate({x0 - (ML - 0.9) * f} {-y0 - H / 2}) rotate(-90)"
       text-anchor="middle">{yLabel}</text>
     {#if colorbar}
       {@const cx = x1 + 1.2 * f}
-      <rect x={cx} y={-y1} width={f} height={H} fill="url(#{uid}-cb)" />
+      <rect class="bar" x={cx} y={-y1} width={f} height={H} fill="url(#{uid}-cb)" />
       {#each colorbar.ticks as tk (tk.t)}
         <line x1={cx + f} x2={cx + 1.4 * f} y1={-y0 - tk.t * H} y2={-y0 - tk.t * H} />
         <text x={cx + 1.6 * f} y={-y0 - tk.t * H + 0.35 * f}>{tk.text}</text>
       {/each}
-      <text class="label" transform="translate({cx + 6.6 * f} {-y0 - H / 2}) rotate(-90)"
+      <text class="label" transform="translate({cx + 5.9 * f} {-y0 - H / 2}) rotate(-90)"
         text-anchor="middle">{colorbar.label}</text>
     {/if}
   </g>
 </svg>
+</div>
 
 <style>
+  .frame {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: min(calc(var(--frame-h) * var(--chart-k) * 1px), var(--frame-natural));
+  }
   svg {
-    display: block;
+    position: absolute;
+    inset: 0;
     width: 100%;
-    overflow: visible;
+    height: 100%;
   }
   .live {
     cursor: crosshair;
   }
-  .axes line,
+  .axes line {
+    stroke: var(--dim);
+  }
+  /* the ink rule that closes the plot area and the colour bar */
   .axes rect {
-    stroke: var(--muted);
+    stroke: var(--line);
   }
   .axes text {
-    fill: var(--muted);
+    fill: var(--dim);
     stroke: none;
-  }
-  .axes text.label {
-    fill: var(--ink);
   }
 </style>

@@ -126,14 +126,12 @@
 </script>
 
 <div class="cols">
-<!-- svelte-ignore a11y_no_noninteractive_tabindex (a scrolling region must take keyboard focus) -->
-<div class="scroll" role="region" aria-label="Coil quantities at the view frequency" tabindex="0">
-  <table>
+  <table class="sheet coils">
     <thead>
       <tr>
-        <td></td>
-        {#each r.coils as _, k (k)}<th scope="col">Coil {'AB'[k]}</th>{/each}
-        <td></td>
+        <th scope="col">Quantity</th>
+        {#each r.coils as _, k (k)}<th scope="col" class="num">Coil {'AB'[k]}</th>{/each}
+        <th scope="col">Note</th>
       </tr>
     </thead>
     <tbody>
@@ -142,9 +140,9 @@
           <th scope="row">{@html tex(row.sym)}</th>
           {#each row.cells as cell, k (k)}
             {#if typeof cell === 'string'}
-              <td class="value">{cell}</td>
+              <td class="num">{cell}</td>
             {:else}
-              <td class="value">{cell[0]}<small>{cell[1]}</small></td>
+              <td class="num">{cell[0]}<small>{cell[1]}</small></td>
             {/if}
           {/each}
           <td class="muted">{row.note ?? ''}</td>
@@ -152,81 +150,54 @@
       {/each}
     </tbody>
   </table>
-</div>
-  {#each secs as s (s.title)}
-    <section>
-      <h3>{s.title}</h3>
-      {#if s.sub}<p class="muted">{s.sub}</p>{/if}
-      <table>
+  <div class="side">
+    {#each secs as s (s.title)}
+      <table class="sheet">
+        <caption>{s.title}{#if s.sub} <small>{s.sub}</small>{/if}</caption>
         <tbody>
           {#each s.rows as [sym, value, note] (sym)}
             <tr>
               <th scope="row">{@html tex(sym)}</th>
-              <td class="value">{value}</td>
+              <td class="num">{value}</td>
               <td class="muted">{note ?? ''}</td>
             </tr>
           {/each}
         </tbody>
       </table>
-    </section>
-  {/each}
+    {/each}
+  </div>
 </div>
 
 <style>
-  .scroll {
-    max-width: 100%;
-    overflow-x: auto;
-  }
-  .scroll:focus-visible {
-    outline: 2px solid var(--accent);
-  }
-  table {
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-  thead th {
-    padding: 0 8px 2px 0;
-    text-align: right;
-  }
-  tbody th {
-    position: sticky;
-    inset-inline-start: 0;
-    padding: 1px 10px 1px 0;
-    font-weight: 400;
-    text-align: left;
-    vertical-align: top;
-    white-space: nowrap;
-    background: var(--bg);
-  }
+  /* the tables lie edge to edge in the well; the 1px gaps show the ink between them */
   .cols {
     display: flex;
     flex-wrap: wrap;
-    align-items: start;
-    gap: 12px 28px;
+    gap: 1px;
+    background: var(--line);
+    border-bottom: 1px solid var(--line);
   }
-  h3 {
-    margin: 0;
-    font-size: 1rem;
+  .cols > * {
+    flex: 1 1 300px;
+    background: var(--well);
   }
-  p.muted {
-    margin: 0;
+  .cols > .coils {
+    flex: 3 1 440px;
   }
-  .muted {
-    color: var(--muted);
+  .side {
+    display: flex;
+    flex-direction: column;
   }
-  td {
-    padding: 1px 8px 1px 0;
-    vertical-align: top;
+  .side table + table {
+    border-top: 1px solid var(--line);
   }
-  td.value {
-    text-align: right;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+  /* the symbols stay in view when a narrow panel scrolls sideways */
+  tbody th {
+    position: sticky;
+    inset-inline-start: 0;
+    background: var(--well);
   }
-  small {
-    display: block;
-    font-weight: 400;
-    color: var(--muted);
+  tbody tr:hover th {
+    background: var(--head-tint);
   }
 </style>

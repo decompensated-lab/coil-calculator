@@ -1,6 +1,6 @@
 // Headless check of the running app: loads a URL in Chromium, waits until the summary (or an
 // error) shows, prints console errors and saves a PNG. Uses the DevTools protocol directly.
-// Usage: [DARK=1] [KEYS=ArrowRight,...] [NO_FOCUSGROUP=1] node scripts/screenshot.ts <url> <out.png> [width] [height] [js to run first]
+// Usage: [KEYS=ArrowRight,...] [NO_FOCUSGROUP=1] node scripts/screenshot.ts <url> <out.png> [width] [height] [js to run first]
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
@@ -41,10 +41,6 @@ try {
 
   await send('Runtime.enable');
   await send('Page.enable');
-  if (process.env.DARK) {
-    const features = [{ name: 'prefers-color-scheme', value: 'dark' }];
-    await send('Emulation.setEmulatedMedia', { features });
-  }
   if (process.env.NO_FOCUSGROUP) {
     // test the fallback: hide native focusgroup support before the app's scripts run
     const source = 'delete HTMLElement.prototype.focusGroup';

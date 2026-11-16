@@ -29,7 +29,7 @@
       <dt>{t.label}</dt>
       {#each t.values as value, k (k)}
         <dd>
-          {#if t.perCoil}<span style:color={COIL_COLORS[k]}>{'AB'[k]}</span>{/if}
+          {#if t.perCoil}<small style:color={COIL_COLORS[k]}>{'AB'[k]}</small>{/if}
           {value}
         </dd>
       {/each}
@@ -41,21 +41,20 @@
   dl {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 22px;
+    gap: 6px 26px;
     margin: 0;
   }
   dt {
-    color: var(--muted);
-    font-size: 0.8rem;
+    color: var(--dim);
   }
   dd {
-    display: inline;
-    margin: 0 10px 0 0;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
+    margin: 0;
+    font-size: 17px;
+    line-height: 22px;
     white-space: nowrap;
   }
-  dd span {
-    font-weight: 400;
+  small {
+    font-size: 11px;
+    font-weight: 700;
   }
 </style>
