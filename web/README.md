@@ -14,6 +14,13 @@ a sweep plot sets the view frequency; the side view reads |B| under the pointer,
 there moves the height of the Bz(x) cut. Each panel folds away by its heading or expands to
 the whole results area (Escape restores). The wire-pair calculator is a separate mode.
 
+It is laid out as a desktop tool: the inputs on a rail on the left, the results on the desk,
+a status bar below. The panels share the height of the window and the plots fit their
+panel; on a small window the desk scrolls rather than squeezing them, and on a phone the
+page scrolls. The look (monospace, ruled like a datasheet, light only) gives every colour
+one job: ivory cells are typed into, steel keys are pressed, white holds results, and coil
+A is drawn in ink, coil B in dashed magenta, in every plot.
+
 ```bash
 pnpm install && pnpm dev    # needs the Rust toolchain pinned in rust/rust-toolchain.toml
 ```

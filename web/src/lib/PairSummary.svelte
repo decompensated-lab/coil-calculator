@@ -63,54 +63,45 @@
 </script>
 
 {#if !r.converged}
-  <p class="warn">⚠ multipole series not fully converged ({r.nTerms} terms)</p>
+  <p class="banner">multipole series not fully converged ({r.nTerms} terms)</p>
 {/if}
 <div class="cols">
   {#each secs as s (s.title)}
-    <section>
-      <h3>{s.title}</h3>
-      <table>
-        <tbody>
-          {#each s.rows as [sym, value, note] (sym)}
-            <tr>
-              <td>{@html tex(sym)}</td>
-              <td class="value">{value}</td>
-              <td class="muted">{note ?? ''}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-      {#if s.foot}<p class="muted">{s.foot}</p>{/if}
-    </section>
+    <table class="sheet">
+      <caption>{s.title}{#if s.foot} <small>{s.foot}</small>{/if}</caption>
+      <tbody>
+        {#each s.rows as [sym, value, note] (sym)}
+          <tr>
+            <th scope="row">{@html tex(sym)}</th>
+            <td class="num">{value}</td>
+            <td class="muted">{note ?? ''}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
   {/each}
 </div>
-<p class="muted">
+<p class="foot muted">
   Two long parallel wires, insulation in air; {@html tex('C = q/(V_1-V_2)')} with equal and opposite
   charges.
 </p>
 
 <style>
-  .warn {
-    margin: 2px 0;
-    color: var(--warn);
-  }
   .cols {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 28px;
+    gap: 1px;
+    background: var(--line);
+    border-bottom: 1px solid var(--line);
   }
-  h3 {
-    margin: 0;
-    font-size: 1rem;
+  .cols > * {
+    flex: 1 1 340px;
+    background: var(--well);
   }
-  td {
-    padding: 1px 8px 1px 0;
-    vertical-align: middle;
+  .banner {
+    margin: 8px;
   }
-  td.value {
-    text-align: right;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+  .foot {
+    padding: 4px 8px;
   }
 </style>

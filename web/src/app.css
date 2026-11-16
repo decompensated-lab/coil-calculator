@@ -1,114 +1,431 @@
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/700.css';
+
+/* The look is "datasheet plus" with quiet rules: one monospace size, every object closed by a
+   1px rule, and colour with one job each. Light only, by choice.
+   1. Cool is structure. The blue-gray rail is where you set things, the neutral desk is where
+      you read them. A panel on the rail is named in navy, a panel on the desk in dark gray.
+   2. What you can touch sits on either side of the paper: a cell to type in is ivory
+      (lighter, warm), a key to press is steel (darker, cool).
+   3. White is data you only read. The first trace is ink; nothing lies on the data, so
+      legends and readouts sit above the plots.
+   4. State is a solid block with a shape, never a tint: green dot, yellow triangle, red square.
+   5. Cyan is a lit lamp: at the foot of the chosen mode key and as the cap of the open tab.
+   6. Two levels of rule: ink closes an object, gray divides it.
+   Trace colours are in lib/plot.ts (a canvas needs them as values). */
 :root {
-  --ink: #1f1f1e;
-  --muted: #6b6a64;
-  --grid: #e4e3de;
-  --bg: #ffffff;
-  --panel: #f7f6f3;
-  --input: #ffffff;
-  --warn: #b4541a;
-  --error: #c0392b;
-  --accent: #2a78d6;
-  color-scheme: light dark;
+  --bg: #e6e8ea; /* paper: panels and bars */
+  --desk: #c6cbd1; /* behind the panels you read */
+  --rail: #a9bdd6; /* behind the panels you set */
+  --head: #24477a; /* names a panel you set */
+  --head-desk: #43484f; /* names a panel you read */
+  --head-tint: #d2deec; /* column heads, and the row under the pointer */
+  --fg: #0e1318; /* ink, on the same hue as the grays */
+  --field: #fff8cf; /* ivory: a cell you can type into */
+  --key: #bdc9d8; /* steel: a key you can press */
+  --well: #fff; /* data */
+  --dim: #555b63;
+  --line: var(--fg); /* the rule around an object */
+  --line-2: #757b82; /* rules inside one: grid, table and group lines */
+  --on: #00a2d2; /* the lit bar on whatever is switched on or open */
+  --off: #e3e7eb; /* the same lamp, unlit */
+  --ok: #2da44e;
+  --warn: #f8c800;
+  --err: #b3142b;
+  --plot-grid: #c4c8cd;
+  --chart-k: 0.55; /* how far a plot may shrink from its natural height before its panel scrolls */
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #f0efec;
-    --muted: #a8a79f;
-    --grid: #3a3936;
-    --bg: #1c1c1b;
-    --panel: #232321;
-    --input: #2b2b29;
-    --warn: #f0a050;
-    --error: #ff7a6b;
-    --accent: #6aa8f0;
-  }
-}
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dim) transparent;
 }
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--ink);
-  font: 14px/1.4 system-ui, sans-serif;
+  color: var(--fg);
+  font: 12px/18px 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
+  cursor: default;
 }
-/* form rows (Num, Choice): label left, input right */
-.row {
-  display: grid;
-  grid-template-columns: 7.5em minmax(0, 1fr);
+:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
+}
+h2,
+h3,
+p,
+ul {
+  margin: 0;
+  font: inherit;
+}
+a {
+  color: inherit;
+}
+.muted {
+  color: var(--dim);
+}
+
+/* Keys: a ruled steel cell. Pointing darkens the face one step, pressing two. */
+button,
+.key {
+  --face: var(--key);
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 3px 0;
+  gap: 8px;
+  height: 24px;
+  padding: 0 10px;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--face);
+  border: 1px solid var(--line);
+  border-radius: 0;
 }
-.row .name {
-  color: var(--muted);
-  cursor: help;
+:is(button, .key):hover {
+  background: color-mix(in srgb, var(--face) 88%, var(--fg));
 }
-.row .field {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
+:is(button, .key):active {
+  background: color-mix(in srgb, var(--face) 76%, var(--fg));
 }
-.row .unit {
-  color: var(--muted);
-  min-width: 2.2em;
+button:disabled {
+  color: var(--dim);
+  background: none;
+  border-style: dashed;
+  border-color: var(--dim);
 }
-.pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 8px;
-}
-.pair .row {
-  grid-template-columns: auto minmax(0, 1fr);
-}
-input[type='number'],
+
+/* Fields: ivory, because you can write in them */
+input:is([type='number'], [type='text']),
 select {
   width: 100%;
   min-width: 0;
-  padding: 2px 4px;
+  height: 22px;
+  padding: 0 8px;
   font: inherit;
-  color: inherit;
-  background: var(--input);
-  border: 1px solid var(--grid);
-  border-radius: 4px;
+  color: var(--fg);
+  background-color: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 0;
 }
-input[type="number"]:placeholder-shown {
-  border-color: var(--error);
+select {
+  appearance: none;
+  padding-right: 22px;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 0h8L4 5z' fill='%230e1318'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
 }
-fieldset:disabled .row,
-.row.off {
-  opacity: 0.5;
+:is(input, select):disabled {
+  color: var(--dim);
+  background-color: var(--bg);
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgb(0 0 0 / 0.1) 3px 4px);
+}
+/* empty, or outside its limits: the model will refuse it */
+input:is(:placeholder-shown, :out-of-range) {
+  color: var(--err);
+  box-shadow: inset 3px 0 var(--err);
+}
+input[type='checkbox'] {
+  appearance: none;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin: 0 8px 0 0;
+  vertical-align: -1px;
+  background: var(--field);
+  border: 1px solid var(--line);
+}
+input[type='checkbox']:checked {
+  background: var(--fg);
+  box-shadow: inset 0 0 0 2px var(--field);
+}
+
+/* Property grid: name | control | unit, as cells of a ruled table. A control without a unit
+   takes the unit's column too. */
+.props {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  border: 1px solid var(--line);
+}
+.props > label {
+  display: contents;
+}
+.props > label > * {
+  height: 23px;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.props > label > span {
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.props > label[title] > span:first-child {
+  cursor: help;
+}
+.props > label > :is(input, select),
+.props > label > span:last-child {
+  border-left: 1px solid var(--line-2);
+}
+.props > label > span:last-child {
+  min-width: 5ch;
+  color: var(--dim);
+}
+.props > label > :is(input, select):last-child {
+  grid-column: 2 / -1;
+}
+.props > label:last-child > * {
+  border-bottom: 0; /* the grid's own rule closes it */
+}
+.props > label:has(:disabled) > span {
+  color: var(--dim);
+}
+/* one property on its own, in a toolbar or beside a plot */
+.props.one {
+  display: inline-grid;
+  grid-template-columns: auto 7em auto;
+  background: var(--bg);
+}
+fieldset {
+  min-width: 0;
+  margin: 8px 0 0;
+  padding: 2px 8px 8px;
+  border: 1px solid var(--line-2);
+}
+legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+/* a disclosure wears the mark of a tree node */
+summary {
+  list-style: none;
+  font-weight: 700;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+summary::before {
+  content: '+\00A0';
+}
+details[open] > summary::before {
+  content: '\2212\00A0';
+}
+
+/* Panels: a sheet lying on the rail or the desk, named by a solid bar */
+.panel {
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.panel-head {
+  display: flex;
+  align-items: stretch;
+  min-height: 23px;
+  color: #fff;
+  background: var(--head-desk);
+  border-bottom: 1px solid var(--line);
+}
+.panel-head h2 {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+/* a heading that folds its panel: the whole name is the button, the steel box is its mark */
+.panel-head h2:has(button) {
+  display: flex;
+  padding: 0;
+}
+.panel-head h2 button {
+  height: auto;
+  padding: 2px 8px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  background: none;
+  border: 0;
+}
+.panel-head h2 button::before {
+  content: '+';
+  width: 13px;
+  height: 13px;
+  font: 400 12px/11px 'JetBrains Mono', monospace;
+  letter-spacing: 0;
+  text-align: center;
+  color: var(--fg);
+  background: var(--key);
+  border: 1px solid var(--line);
+}
+.panel-head h2 button[aria-expanded='true']::before {
+  content: '\2212';
+}
+.panel-head h2 button:hover::before {
+  background: color-mix(in srgb, var(--key) 88%, var(--fg));
+}
+.panel-head :focus-visible {
+  outline-color: #fff;
+  outline-offset: -3px;
+}
+
+/* Tables are fully ruled, as on a spec sheet */
+table.sheet {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sheet th {
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+.sheet thead th,
+.sheet caption {
+  padding: 2px 8px;
+  font-weight: 700;
+  text-align: left;
+  background: var(--head-tint);
+  box-shadow: inset 0 -1px var(--line);
+}
+.sheet thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.sheet caption small {
+  margin-left: 1ch;
+  font-weight: 400;
+  color: var(--dim);
+}
+.sheet tbody :is(th, td) {
+  padding: 1px 8px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line-2);
+}
+.sheet :is(th, td) + :is(th, td) {
+  border-left: 1px solid var(--line-2);
+}
+.sheet tbody tr:hover {
+  background: var(--head-tint);
+}
+.sheet .num {
+  text-align: right;
+  white-space: nowrap;
+}
+/* symbols and values are as wide as their content; the notes get the rest, and in a narrow
+   panel keep a readable width (the table then scrolls sideways) */
+.sheet :is(th, td):last-child {
+  width: 99%;
+  min-width: 12ch;
+}
+.sheet .num small {
+  display: block;
+  color: var(--dim);
+}
+.katex {
+  font-size: 1.1em !important; /* 13px: the symbols sit in 12px rows */
+}
+
+/* State: a solid colour and a shape each */
+.led {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--ok);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--fg);
+}
+.led.off {
+  background: var(--off);
+}
+.led.err {
+  background: var(--err);
+  border-radius: 0;
+}
+.led.warn {
+  width: 13px;
+  height: 11px;
+  background: var(--fg);
+  border-radius: 0;
+  box-shadow: none;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.led.warn::after {
+  content: '';
+  display: block;
+  height: 100%;
+  background: var(--warn);
+  clip-path: polygon(50% 24%, 84% 90%, 16% 90%);
+}
+.banner {
+  padding: 2px 8px;
+  font-weight: 700;
+  background: var(--warn);
+  border: 1px solid var(--line);
+}
+.banner::before {
+  content: '\25B2';
+  margin-right: 1ch;
+}
+.banner.err {
+  color: #fff;
+  background: var(--err);
+}
+.banner.err::before {
+  content: '\25A0';
+}
+
+/* Plots (lib/plot.ts): a legend is a caption above its panel; the panels share the height the
+   element is given. --chart-h is their natural height in px. */
+.plot-title {
+  flex: none;
+  margin-bottom: 2px;
+}
+.chart {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: calc(var(--chart-h) * var(--chart-k) * 1px + 16px);
+  overflow: hidden;
+}
+.uplot {
+  font-family: inherit;
+  line-height: inherit;
 }
 .u-legend {
-  color: var(--ink);
-  font-size: 12px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: left;
+}
+.u-legend.u-inline .u-series {
+  margin-right: 12px;
+}
+.u-legend.u-inline :is(th, td) {
+  padding: 0;
+}
+.u-legend th {
+  font-weight: 400;
+}
+/* a sample of the line, with its dash, instead of a box */
+.u-legend .u-marker {
+  width: 18px;
+  height: 0;
+  margin-right: 6px;
+  border-width: 2px 0 0 !important;
+  background: none !important;
 }
 /* hover values keep their width, so the legend does not reflow under the moving cursor */
 .u-legend .u-value {
   min-width: 7ch;
-  text-align: left;
-  font-variant-numeric: tabular-nums;
+  padding-left: 1ch !important;
+  font-weight: 700;
 }
-.plot-title {
-  margin: 0 0 4px;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-.chart {
-  width: 100%;
-  min-width: 0;
-}
-.muted {
-  color: var(--muted);
-}
-fieldset {
-  margin: 0 0 10px;
-  padding: 6px 10px 8px;
-  border: 1px solid var(--grid);
-  border-radius: 6px;
-}
-legend {
-  font-weight: 600;
-  padding: 0 4px;
+.u-cursor-x,
+.u-cursor-y {
+  border-color: var(--fg) !important;
 }

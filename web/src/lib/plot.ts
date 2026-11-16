@@ -1,16 +1,29 @@
 // Stacked uPlot panels with the app's styling (gui/plots.py `_style`): theme colours from CSS
 // variables, SI tick labels, marker lines/bands, a shared cursor, and resizing with the
-// container. Use as `{@attach charts(panels, options)}` on an empty element. Legends go above
-// the panels and their hover values have a fixed format and width, so nothing moves under
-// the cursor. In an expanded card (class `max`) the panels stretch to fill the window.
+// container. Use as `{@attach charts(panels, options)}` on an empty `.chart` element. A legend
+// goes above its panel and its hover values have a fixed format and width, so nothing moves
+// under the cursor. The panels share the height the element is given (app.css `.chart`), less
+// the legends, in proportion to their `height`.
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { g, si } from './results';
 
-export const BLUE = '#2a78d6';
-export const ORANGE = '#eb6834';
-export const AQUA = '#1baf7a';
-export const COIL_COLORS = [BLUE, ORANGE];
+// Traces. The data is ink (the darkest line in a plot); the second and third trace differ
+// from it and from each other in lightness as well as hue, and carry a dash as a second cue,
+// so they survive colour blindness and a gray printout (measured with the palette audit of
+// the UI studies: OKLab distance >= 0.10 for every pair under every kind of dichromacy).
+// Blue, orange, cyan, green, yellow and red have jobs in the interface and are never a trace.
+export const INK = '#0e1318'; // = --fg in app.css
+export const MAGENTA = '#e0489f';
+export const TEAL = '#00695f';
+export const GRAY = '#757b82'; // references and estimates, always dotted
+export const DASH = [7, 3];
+export const DASH_DOT = [7, 3, 2, 3];
+export const DOTTED = [2, 3];
+/** Line style of coil A and coil B. */
+export const COIL_STYLES = [{ stroke: INK }, { stroke: MAGENTA, dash: DASH }];
+export const COIL_COLORS = [INK, MAGENTA];
+const FONT = '11px "JetBrains Mono", monospace';
 
 /** A vertical (`x`) or horizontal (`y`) line, a vertical band `x..x1`, or a point (`x`, `y`). */
 export interface Mark {
@@ -32,6 +45,8 @@ export interface Panel {
   yLog?: boolean;
   yRange?: [number, number];
   xLabel?: string;
+  /** Name of x in the legend (default: `xLabel` without its remark in parentheses). */
+  xName?: string;
   yLabel?: string;
   /** Hide the x tick labels (upper panel of a shared-x stack). */
   xHidden?: boolean;
@@ -56,24 +71,25 @@ export interface ChartOptions {
   sync?: string;
   /** Gets the x value of a plain click (a drag still zooms, a double click resets). */
   onpick?: (x: number) => void;
-  /** Share of the window height these panels get in an expanded card. */
-  share?: number;
 }
 
-export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOptions = {}) {
+export function charts(panels: Panel[], { sync, onpick }: ChartOptions = {}) {
   return (node: HTMLElement) => {
     const css = getComputedStyle(node);
-    const muted = css.getPropertyValue('--muted').trim();
-    const grid = css.getPropertyValue('--grid').trim();
-    const ink = css.getPropertyValue('--ink').trim();
-    const axis = { stroke: muted, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid } };
-    const total = panels.reduce((sum, p) => sum + p.height, 0);
-    const height = (p: Panel) => {
-      const fill = node.closest('.max') ? (share * (innerHeight - 300)) / total : 1;
-      return Math.round(p.height * Math.max(fill, 1));
+    const muted = css.getPropertyValue('--dim').trim();
+    const grid = css.getPropertyValue('--plot-grid').trim();
+    const ink = css.getPropertyValue('--fg').trim();
+    const axis = {
+      stroke: muted, font: FONT, labelFont: FONT, labelSize: 18,
+      grid: { stroke: grid, width: 1 }, ticks: { stroke: muted, width: 1, size: 4 },
     };
-    const legends = document.createElement('div');
-    node.append(legends);
+    const total = panels.reduce((sum, p) => sum + p.height, 0);
+    node.style.setProperty('--chart-h', String(total));
+    const legends: HTMLElement[] = [];
+    const height = (p: Panel) => {
+      const free = node.clientHeight - legends.reduce((sum, el) => sum + el.offsetHeight, 0);
+      return Math.max(Math.floor((free * p.height) / total), 1);
+    };
     const plots = panels.map((p) => {
       const draw = (u: uPlot) => {
         const { ctx, bbox } = u;
@@ -88,7 +104,7 @@ export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOption
             ctx.beginPath();
             ctx.arc(px, py, 5 * devicePixelRatio, 0, 2 * Math.PI);
             ctx.fill();
-            ctx.strokeStyle = getComputedStyle(node).getPropertyValue('--bg').trim();
+            ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2 * devicePixelRatio;
             ctx.stroke();
           } else if (m.x != null && m.x1 != null) {
@@ -98,7 +114,8 @@ export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOption
             if (hi > lo) ctx.fillRect(lo, bbox.top, hi - lo, bbox.height);
             if (m.label) {
               ctx.globalAlpha = 1;
-              ctx.font = `${11 * devicePixelRatio}px system-ui, sans-serif`;
+              ctx.fillStyle = ink;
+              ctx.font = `${11 * devicePixelRatio}px "JetBrains Mono", monospace`;
               ctx.textAlign = 'center';
               ctx.fillText(m.label, (lo + hi) / 2, bbox.top + 14 * devicePixelRatio);
             }
@@ -121,6 +138,17 @@ export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOption
           }
           ctx.restore();
         }
+        // the ink rule that closes the plot area, over the grid and the traces
+        ctx.save();
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = devicePixelRatio;
+        const half = devicePixelRatio / 2;
+        ctx.strokeRect(bbox.left + half, bbox.top + half, bbox.width - 2 * half, bbox.height - 2 * half);
+        ctx.restore();
+      };
+      const dashName = (_u: uPlot, i: number) => {
+        const d = p.series[i - 1]?.dash;
+        return !d ? 'solid' : d[0] <= 2 ? 'dotted' : 'dashed';
       };
       const xKind = p.xTicks ?? (p.xLog ? 'si' : 'plain');
       const yKind = p.yTicks ?? (p.yLog ? 'si' : 'plain');
@@ -130,7 +158,14 @@ export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOption
         height: height(p),
         title: p.title,
         cursor: sync ? { sync: { key: sync } } : {},
-        legend: { show: p.legend ?? true, mount: (_u, el) => legends.append(el) },
+        legend: {
+          show: p.legend ?? true,
+          mount: (_u, el) => {
+            legends.push(el);
+            node.append(el); // before the panel's own root, which uPlot appends after this
+          },
+          markers: { width: 2, dash: dashName },
+        },
         // the data range exactly (uPlot would round a log range out to whole decades)
         scales: {
           x: { time: false, distr: p.xLog ? 3 : 1, range: exact },
@@ -139,19 +174,18 @@ export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOption
             : { distr: p.yLog ? 3 : 1 },
         },
         series: [
-          { label: p.xLabel?.replace(/\s*\(.*\)$/, '') ?? 'x', value: value(xKind) },
+          { label: p.xName ?? p.xLabel?.replace(/\s*\(.*\)$/, '') ?? 'x', value: value(xKind) },
           ...p.series.map((s) => ({ value: value(yKind), ...s })),
         ],
         axes: [
           {
             ...axis,
-            size: p.xHidden ? 10 : 32,
-            labelSize: 24,
+            size: p.xHidden ? 8 : 24,
             label: p.xHidden ? undefined : p.xLabel,
             values: p.xHidden ? (_u, v) => v.map(() => '') : ticks(xKind),
             ...(p.xInt ? { incrs: [1, 2, 5, 10, 20, 50, 100] } : {}),
           },
-          { ...axis, label: p.yLabel, values: ticks(yKind), size: 64 },
+          { ...axis, label: p.yLabel, values: ticks(yKind), size: 46 },
         ],
         hooks: { draw: [draw] },
       };
@@ -172,6 +206,8 @@ export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOption
       }
       return u;
     });
+    // the element's size is given from outside (flex), so resizing the panels cannot loop;
+    // the first call also accounts for the legends, which were not all there at creation
     const ro = new ResizeObserver(() => {
       plots.forEach((u, i) => u.setSize({ width: node.clientWidth, height: height(panels[i]) }));
     });
@@ -179,7 +215,7 @@ export function charts(panels: Panel[], { sync, onpick, share = 1 }: ChartOption
     return () => {
       ro.disconnect();
       plots.forEach((u) => u.destroy());
-      legends.remove();
+      legends.forEach((el) => el.remove());
     };
   };
 }

@@ -128,7 +128,8 @@ cross-check of its own. No Coil64 code is used.
   independent check of the mutual inductance), [Matplotlib](https://matplotlib.org) and
   [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/).
 * The browser app is built on [Svelte](https://svelte.dev), [uPlot](https://github.com/leeoniya/uPlot),
-  [KaTeX](https://katex.org) and [Vite](https://vite.dev); the Rust port uses
+  [KaTeX](https://katex.org) and [Vite](https://vite.dev), and set in
+  [JetBrains Mono](https://www.jetbrains.com/lp/mono/); the Rust port uses
   [`complex-bessel`](https://github.com/elgar328/complex-bessel) (a port of Amos' Bessel
   package), `num-complex` and `libm`.
 * Code ported from other projects: the loop-field formula of Magpylib

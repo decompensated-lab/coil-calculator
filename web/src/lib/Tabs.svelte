@@ -71,7 +71,7 @@
     </button>
   {/each}
 </div>
-<div class="panel" role="tabpanel" aria-labelledby={id(selected)} tabindex="0">
+<div class="tabpanel" role="tabpanel" aria-labelledby={id(selected)} tabindex="0">
   {@render panel()}
 </div>
 
@@ -90,8 +90,10 @@
     display: flex;
     overflow-x: auto;
     scrollbar-width: none;
-    border-bottom: 1px solid var(--grid);
-    margin-bottom: 10px;
+    flex: none;
+    padding: 6px 8px 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
     --fade-size: 3rem;
     scroll-padding-inline: var(--fade-size);
     mask-image: linear-gradient(to right, transparent, black var(--fade-start),
@@ -117,31 +119,35 @@
       --fade-end: var(--fade-size);
     }
   }
+  /* a tab is a key; the open one is inverted and capped with the lit bar */
   [role='tab'] {
-    position: relative;
     flex: none;
-    padding: 6px 12px;
-    font: inherit;
-    color: var(--muted);
-    background: none;
-    border: 0;
-    cursor: pointer;
+    margin-right: -1px; /* adjacent tabs share a rule */
+    padding-top: 3px; /* room for the cap, so the bar never crowds the label */
+    border-bottom: 0; /* the rule of the row closes them */
   }
-  [role='tab']:hover {
-    color: var(--ink);
+  /* selection follows focus, so the focused tab is the inverted one */
+  [role='tab']:focus-visible {
+    outline-offset: -4px;
+    outline-color: #fff;
   }
-  /* selected: colour plus an underline (a border, which forced-colours mode keeps) */
-  [aria-selected='true'] {
-    color: var(--accent);
+  [aria-selected='true'],
+  [aria-selected='true']:hover {
+    font-weight: 700;
+    color: #fff;
+    background: var(--fg);
+    box-shadow: inset 0 3px var(--on);
   }
-  [aria-selected='true']::after {
-    content: '';
-    position: absolute;
-    inset: auto 0 0;
-    border-block-end: 3px solid var(--accent);
+  /* the well the selected plot lies in: it gives the plot all its height */
+  .tabpanel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 6px 8px;
+    overflow: auto;
   }
-  .panel:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+  .tabpanel:focus-visible {
+    outline-offset: -2px;
   }
 </style>

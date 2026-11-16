@@ -20,14 +20,15 @@
 
 <svelte:window onkeydown={keydown} />
 
-<button type="button" class="open" aria-keyshortcuts="F1" onclick={() => dialog.showModal()}>
+<button type="button" aria-keyshortcuts="F1" onclick={() => dialog.showModal()}>
   Guide <kbd>F1</kbd>
 </button>
-<a class="open" href={REPO} target="_blank" rel="noopener">Source</a>
+<a class="key" href={REPO} target="_blank" rel="noopener">Source</a>
 
 <dialog bind:this={dialog} aria-labelledby="guide-title" {...{ closedby: 'any' }}>
-  <!-- first, so focusing it does not scroll the guide to its end -->
+  <!-- the title bar; its key is first, so focusing it does not scroll the guide to its end -->
   <form method="dialog">
+    <span class="bar">Guide</span>
     <!-- svelte-ignore a11y_autofocus (initial focus inside a modal dialog is intended) -->
     <button autofocus>Close</button>
   </form>
@@ -43,29 +44,22 @@
 </dialog>
 
 <style>
-  .open {
-    padding: 2px 8px;
-    font: inherit;
-    font-size: 0.85rem;
-    color: inherit;
-    background: var(--input);
-    border: 1px solid var(--grid);
-    border-radius: 4px;
-    cursor: pointer;
-    text-decoration: none;
-  }
   kbd {
     font: inherit;
-    color: var(--muted);
+    color: var(--dim);
   }
+  /* a window of its own: ink bar, the text on paper, a closing rule */
   dialog {
-    width: min(720px, calc(100vw - 32px));
-    max-height: 85vh;
-    padding: 16px 20px;
-    color: var(--ink);
+    width: min(84ch, calc(100vw - 32px));
+    max-height: 88vh;
+    padding: 0;
+    color: var(--fg);
     background: var(--bg);
-    border: 1px solid var(--grid);
-    border-radius: 8px;
+    border: 2px solid var(--line);
+  }
+  dialog[open] {
+    display: flex;
+    flex-direction: column;
   }
   /* both rules: without them, scrolling in the dialog or over the backdrop scrolls the page */
   dialog:modal {
@@ -74,33 +68,61 @@
   dialog::backdrop {
     overflow: hidden;
     overscroll-behavior: contain;
-    background: rgb(0 0 0 / 0.35);
-  }
-  .guide :global(h2) {
-    margin-top: 0;
-  }
-  .guide :global(a),
-  .build a {
-    color: var(--accent);
-  }
-  .build {
-    margin: 16px 0 0;
-    padding-top: 8px;
-    border-top: 1px solid var(--grid);
-    color: var(--muted);
-    font-size: 0.85rem;
+    background: rgb(198 203 209 / 0.82);
   }
   form {
-    float: right;
-    margin-left: 12px;
+    display: flex;
+    flex: none;
+    align-items: stretch;
+    justify-content: space-between;
+    color: #fff;
+    background: var(--fg);
+  }
+  .bar {
+    padding: 3px 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
   }
   form button {
-    padding: 4px 14px;
-    font: inherit;
-    color: inherit;
-    background: var(--input);
-    border: 1px solid var(--grid);
-    border-radius: 4px;
-    cursor: pointer;
+    height: auto;
+    color: var(--fg);
+    border-width: 0 0 0 1px;
+  }
+  form button:focus-visible {
+    outline-color: #fff;
+    outline-offset: -4px;
+  }
+  /* running text: more leading than the interface, and a measure a line can be read in */
+  .guide {
+    padding: 4px 16px 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    line-height: 20px;
+  }
+  .guide :global(:is(h2, h3)) {
+    margin: 14px 0 4px;
+    font-weight: 700;
+  }
+  .guide :global(h2) {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .guide :global(h3) {
+    padding-bottom: 2px;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .guide :global(p) {
+    margin: 0 0 8px;
+  }
+  .guide :global(ul) {
+    margin: 0 0 8px;
+    padding-left: 3ch;
+  }
+  .build {
+    flex: none;
+    padding: 4px 16px;
+    color: var(--dim);
+    border-top: 1px solid var(--line);
   }
 </style>

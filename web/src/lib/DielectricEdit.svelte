@@ -34,8 +34,6 @@
 </script>
 
 <Choice {label} tip={tips[0]} bind:value={material} options={names} onchange={preset} />
-<div class="pair">
-  <Num label="εr" tip={tips[1]} bind:value={value.eps_r} step={0.1} min={1} oninput={manual} />
-  <Num label="tan δ" tip={tips[2]} bind:value={value.tan_delta} step={0.001} min={0}
-    oninput={manual} />
-</div>
+<Num label="εr" tip={tips[1]} bind:value={value.eps_r} step={0.1} min={1} oninput={manual} />
+<Num label="tan δ" tip={tips[2]} bind:value={value.tan_delta} step={0.001} min={0}
+  oninput={manual} />

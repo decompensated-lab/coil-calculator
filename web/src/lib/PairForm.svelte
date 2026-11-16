@@ -38,12 +38,14 @@
 </script>
 
 {#snippet wire(w: WireParams)}
+  <div class="props">
   <Num label="conductor Ø" tip="pair_cond" bind:value={w.conductor_d_mm} unit="mm" step={0.05}
     min={0.001} />
   <Num label="insulation Ø" tip="pair_ins" bind:value={w.insulation_d_mm} unit="mm" step={0.05}
     min={w.conductor_d_mm} />
   <DielectricEdit label="insulation" tips={['pair_material', 'pair_eps', 'pair_tand']}
     bind:material={w.material} bind:value={w.insulation} onpreset={() => bare(w)} />
+  </div>
 {/snippet}
 
 <fieldset>
@@ -61,10 +63,12 @@
 </fieldset>
 <fieldset>
   <legend>Spacing</legend>
-  <Choice label="reference" tip="pair_ref" bind:value={pair.spacing_ref} options={SPACING_REFS}
-    onchange={refChanged} />
-  <Num label="spacing" tip="pair_spacing" bind:value={pair.spacing_mm} unit="mm" step={0.05}
-    min={0} />
+  <div class="props">
+    <Choice label="reference" tip="pair_ref" bind:value={pair.spacing_ref}
+      options={SPACING_REFS} onchange={refChanged} />
+    <Num label="spacing" tip="pair_spacing" bind:value={pair.spacing_mm} unit="mm" step={0.05}
+      min={0} />
+  </div>
   <button type="button" class="from-a" title={TIPS.pair_from_a} onclick={fromCoilA}>
     From coil A (wire Ø, pitch)
   </button>
@@ -72,17 +76,11 @@
 
 <style>
   .from-a {
-    margin-top: 6px;
     width: 100%;
-    padding: 4px 8px;
-    font: inherit;
-    color: inherit;
-    background: var(--input);
-    border: 1px solid var(--grid);
-    border-radius: 4px;
-    cursor: pointer;
+    margin-top: 6px;
+    justify-content: center;
   }
-  .from-a:hover {
-    border-color: var(--muted);
+  legend input {
+    margin-right: 6px;
   }
 </style>

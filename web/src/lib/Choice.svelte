@@ -1,4 +1,5 @@
-<!-- Labelled select over a fixed list of option values (the value is also the label). -->
+<!-- Labelled select over a fixed list of option values (the value is also the label): one
+     row of a `.props` grid. -->
 <script lang="ts" generics="T extends string">
   import { TIPS } from './help';
 
@@ -19,13 +20,11 @@
   } = $props();
 </script>
 
-<label class="row" title={TIPS[tip]}>
-  <span class="name">{label}</span>
-  <span class="field">
-    <select bind:value {onchange}>
-      {#each options as o (o)}
-        <option value={o}>{text(o)}</option>
-      {/each}
-    </select>
-  </span>
+<label title={TIPS[tip]}>
+  <span>{label}</span>
+  <select bind:value {onchange}>
+    {#each options as o (o)}
+      <option value={o}>{text(o)}</option>
+    {/each}
+  </select>
 </label>

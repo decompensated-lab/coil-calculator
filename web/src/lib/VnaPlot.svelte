@@ -1,8 +1,8 @@
 <!-- S-parameters of the selected VNA setup: |S| in dB and phase, or (`smith`) a Smith chart
      (gui/plots.py draw_vna and smith_grid). -->
 <script lang="ts">
-  import { AQUA, BLUE, ORANGE, type Panel, charts } from './plot';
-  import { type Results, abs, at, deg, g } from './results';
+  import { DASH, DASH_DOT, INK, MAGENTA, TEAL, type Panel, charts } from './plot';
+  import { type Complex, type Results, abs, at, deg, g } from './results';
 
   let { r, smith: chart = false, onview }: { r: Results; smith?: boolean; onview: (mhz: number) => void } =
     $props();
@@ -12,18 +12,18 @@
   function traces(r: Results) {
     const nf = r.freqs.length;
     const pick = (j: number) => Array.from({ length: nf }, (_, i) => at(r.s, i * 4 + j));
-    const all = [
-      { name: 'S11', color: BLUE, s: pick(0), smith: true },
-      { name: 'S21', color: ORANGE, s: pick(2), smith: false },
+    const all: { name: string; color: string; dash?: number[]; s: Complex[]; smith: boolean }[] = [
+      { name: 'S11', color: INK, s: pick(0), smith: true },
+      { name: 'S21', color: MAGENTA, dash: DASH, s: pick(2), smith: false },
     ];
-    if (r.vnaPair) all.push({ name: 'S22', color: AQUA, s: pick(3), smith: true });
+    if (r.vnaPair) all.push({ name: 'S22', color: TEAL, dash: DASH_DOT, s: pick(3), smith: true });
     return all;
   }
 
   function panels(r: Results): Panel[] {
     const t = traces(r);
     const mhz = Array.from(r.freqs, (f) => f / 1e6);
-    const series = t.map((x) => ({ label: x.name, stroke: x.color, width: 1.5 }));
+    const series = t.map((x) => ({ label: x.name, stroke: x.color, dash: x.dash, width: 1.5 }));
     const marks = [{ x: r.fView / 1e6, color: 'muted' }];
     return [
       {
@@ -71,27 +71,30 @@
         </g>
         <circle class="rim" r="1" />
         {#each smith as t (t.name)}
-          <polyline points={t.points} stroke={t.color} />
+          <polyline points={t.points} stroke={t.color} stroke-dasharray={t.dash?.join(' ')} />
           <circle class="dot" cx={t.view.re} cy={t.view.im} r="0.035" style:fill={t.color} />
         {/each}
       </g>
     </svg>
     <figcaption id="smith-caption">
       Smith chart (● = view f):
-      {#each smith as t (t.name)}<span class="key" style:color={t.color}>{t.name}</span>{/each}
+      {#each smith as t (t.name)}<span class="trace" style:color={t.color}>{t.name}</span>{/each}
     </figcaption>
   </figure>
 {/if}
 
 <style>
   figure {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 240px;
     margin: 0;
   }
   svg {
-    display: block;
+    flex: 1 1 0;
     width: 100%;
-    max-height: 420px;
-    overflow: visible;
+    min-height: 0;
   }
   svg circle,
   svg line,
@@ -100,25 +103,26 @@
     vector-effect: non-scaling-stroke;
   }
   .grid > * {
-    stroke: var(--grid);
-    stroke-width: 0.8;
+    stroke: var(--plot-grid);
+    stroke-width: 1;
   }
   .rim {
-    stroke: var(--muted);
+    stroke: var(--line);
     stroke-width: 1;
   }
   polyline {
     stroke-width: 1.5;
   }
   svg circle.dot {
-    stroke: var(--bg);
+    stroke: var(--well);
     stroke-width: 2;
   }
-  .key {
-    margin-left: 0.5em;
+  .trace {
+    margin-left: 1ch;
+    font-weight: 700;
   }
   figcaption {
     text-align: center;
-    color: var(--muted);
+    color: var(--dim);
   }
 </style>

@@ -41,7 +41,7 @@ cd web/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings &&
 cd web && pnpm install && pnpm dev        # the browser app (builds the WASM module first)
 cd web && pnpm check && pnpm build        # type-check (svelte-check) and production build
 cd web && node scripts/screenshot.ts http://localhost:5173/ out.png   # headless look (Chromium)
-    # options: DARK=1, KEYS=ArrowRight,..., NO_FOCUSGROUP=1, 5th argument = JS to run first;
+    # options: KEYS=ArrowRight,..., NO_FOCUSGROUP=1, 5th argument = JS to run first;
     # CHROMIUM=<binary> if it is not called `chromium`
 ```
 
@@ -49,7 +49,7 @@ While iterating, `scripts/affected.py` runs only what a change touches (an impor
 the Python tests). Before calling a change done, run ruff (check and format), mypy, and pytest.
 All must pass.
 If `web/rust/` changed, also run the cargo line above. If the rest of `web/` changed, run
-`pnpm check` and `pnpm build`, and look at a screenshot of the app (light and `DARK=1`).
+`pnpm check` and `pnpm build`, and look at a screenshot of the app.
 For GUI changes, also render the affected tab offscreen (`widget.grab().save(...)`) and look
 at the image.
 
@@ -90,9 +90,10 @@ at the image.
   * `src/lib/results.ts`: typed views of the responses, complex and SI-format helpers.
   * `src/lib/plot.ts` (uPlot panels) and `Frame.svelte` + `fieldplot.ts` (equal-aspect SVG,
     colour map, streamlines, contours): the matplotlib replacements. One component per plot.
-  * `src/App.svelte`: the dashboard (header with the mode switch and view frequency, inputs
-    on the left, `KeyNumbers`, then `Card`s (foldable, expandable) that each switch between
-    related plots).
+  * `src/App.svelte`: the window (title bar, toolbar with the mode switch and view frequency,
+    the Setup panel on the left rail, the desk with `KeyNumbers` and two columns of `Card`s
+    (foldable, expandable) that each switch between related plots, status bar). The cards
+    share the window height and plots fit their card; below a usable height the desk scrolls.
     `CoilTable.svelte` is the input table with a column per coil.
   * `src/lib/help.ts`: generated from `gui/help.py`; do not edit by hand.
 * `LICENSE` (MIT) and `THIRD_PARTY_NOTICES.md` (ported code, what the browser build bundles,
@@ -124,8 +125,15 @@ at the image.
   guides. Features beyond Baseline Widely available get the fallback the guide asks for; a
   polyfill package is a new dependency (ask first), so until approved use a small hand-written
   fallback.
-* **Colours** come from the tokens in `src/app.css` (light and dark); plot colours from
-  `plot.ts`.
+* **The look** is "datasheet plus" with quiet rules (light only): its rules are the comment
+  at the top of `src/app.css`. In short: one monospace size, every object closed by a 1px
+  rule, ivory = type here, steel = press here, white = read here, state as a solid colour
+  plus a shape. Global element styles and the shared vocabulary (`.panel`, `.panel-head`,
+  `.props`, `table.sheet`, `.banner`, `.led`, `.key`) live in `app.css`; components add only
+  their own layout.
+* **Colours** come from the tokens in `src/app.css`; trace colours and dashes from `plot.ts`
+  (ink, magenta, teal; gray dotted for references). Each colour has one job: do not reuse
+  blue, orange, cyan or the state colours for a trace.
 * **A new result reaches the UI** through `app.rs`/`pair.rs` `encode` → `results.ts` view;
   add it to `python/tests/port/test_app.py` against the Python value at the same time.
 

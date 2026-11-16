@@ -1,6 +1,6 @@
 <!-- Turn currents and node voltages for the VNA drive (gui/plots.py draw_distribution). -->
 <script lang="ts">
-  import { COIL_COLORS, type Panel, charts, coilName } from './plot';
+  import { COIL_STYLES, type Panel, charts, coilName } from './plot';
   import { type Results, abs, at, g, si, driveLabel } from './results';
 
   let { r }: { r: Results } = $props();
@@ -19,19 +19,19 @@
       const n0 = r.nodeOffsets[k];
       cur.push(turns.map((n) => (n <= c.n_turns ? abs(at(r.driveTurnI, i * nt + t0 + n - 1)) : null)));
       volt.push(nodes.map((n) => (n <= c.n_turns ? abs(at(r.driveNodeV, i * nn + n0 + n)) : null)));
-      const color = COIL_COLORS[coilName(r.vnaPair, r.setupIndex, k) === 'A' ? 0 : 1];
+      const style = COIL_STYLES[coilName(r.vnaPair, r.setupIndex, k) === 'A' ? 0 : 1];
       return {
         label: `coil ${coilName(r.vnaPair, r.setupIndex, k)}`,
-        stroke: color,
+        ...style,
         width: 1.5,
-        points: { show: true, size: 6, fill: color },
+        points: { show: true, size: 6, fill: style.stroke },
       };
     });
     return [
-      { data: cur, series, height: 190, yLog: true, xInt: true, xLabel: 'turn', yLabel: '|I_turn| [A peak]',
+      { data: cur, series, height: 190, yLog: true, xInt: true, xLabel: 'turn', yLabel: '|I| [A peak]',
         yTicks: 'si' },
       { data: volt, series: series.map((s) => ({ ...s })), height: 190, xInt: true, xLabel: 'turn / node index (0 = start terminal)',
-        yLabel: '|V_node| [V peak]', yTicks: 'si', legend: false },
+        yLabel: '|V| [V peak]', yTicks: 'si', legend: false },
     ];
   }
 </script>

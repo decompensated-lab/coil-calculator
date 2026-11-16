@@ -71,7 +71,7 @@
 {#each v.strips as s (s.name)}
   <p class="strip-title">{s.title}</p>
   <Frame x0={s.x0} x1={s.x1} y0={s.y0} y1={s.y1} xLabel="position along coil A axis [mm]"
-    yLabel="r [mm]" label="Cross-section of coil {s.name}'s winding" maxHeight={0.4}>
+    yLabel="r [mm]" label="Cross-section of coil {s.name}'s winding" height={130}>
     {#if s.c.former}
       {@const half = (s.c.length / 2 + s.c.former.overhang) * 1e3}
       <rect class="former" x={s.c.position[2] * 1e3 - half} y={s.rf - s.c.former.wall * 1e3}
@@ -82,14 +82,14 @@
     {#each s.z as zi, n (n)}
       {#if s.ro > s.rw}<circle cx={zi} cy={s.rr} r={s.ro} fill={INSULATION} />{/if}
       <circle class="wire" cx={zi} cy={s.rr} r={s.rw} stroke={s.color}
-        style:fill={s.fills?.[n] ?? 'var(--bg)'}>
+        style:fill={s.fills?.[n] ?? 'var(--well)'}>
         {#if s.values}<title>turn {n + 1}: {fill} = {si(s.values[n], unit, 3)}</title>{/if}
       </circle>
     {/each}
   </Frame>
 {/each}
 <div class="legend">
-  <Choice label="fill" tip="fill" bind:value={fill} options={FILLS} />
+  <div class="props one"><Choice label="fill" tip="fill" bind:value={fill} options={FILLS} /></div>
   {#if fill !== 'none'}
     <span>{si(v.lo, unit, 3)}</span>
     <span class="bar"></span>
@@ -100,16 +100,17 @@
 
 <style>
   .strip-title {
-    margin: 10px 0 2px;
-    font-size: 0.9rem;
+    flex: none;
+    margin-top: 4px;
+    color: var(--dim);
   }
   .former {
-    stroke: var(--muted);
+    stroke: var(--dim);
     stroke-width: 0.8px;
     vector-effect: non-scaling-stroke;
   }
   .no-former {
-    stroke: var(--muted);
+    stroke: var(--dim);
     stroke-dasharray: 2 3;
     vector-effect: non-scaling-stroke;
   }
@@ -121,18 +122,14 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    flex: none;
     gap: 8px;
-    margin-top: 8px;
-    font-size: 0.85rem;
-  }
-  .legend :global(.row) {
-    grid-template-columns: auto 5em;
-    margin-right: 8px;
+    margin-top: 4px;
   }
   .bar {
     width: 140px;
     height: 12px;
     background: linear-gradient(to right, #f7fbff, #c6dbef, #6baed6, #2171b5, #08306b);
-    border: 1px solid var(--grid);
+    border: 1px solid var(--line);
   }
 </style>

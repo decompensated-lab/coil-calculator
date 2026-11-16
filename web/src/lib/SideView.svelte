@@ -77,7 +77,7 @@
 </h3>
 <Frame x0={v.x[0]} x1={v.x[v.x.length - 1]} y0={v.z[0]} y1={v.z[v.z.length - 1]}
   xLabel="x [mm]" yLabel="z (coil A axis) [mm]"
-  colorbar={{ label: '|B| [µT peak]', ticks: v.ticks }} maxHeight={0.6}
+  colorbar={{ label: '|B| [µT peak]', ticks: v.ticks }} height={350}
   label="Magnetic field magnitude and field lines in the plane of the coil axes"
   onprobe={(p) => (hover = p)} onpick={(p) => oncut(Number(p.y.toFixed(1)))}>
   <image href={v.image} x={v.x[0] - v.dx / 2} y={v.z[0] - v.dz / 2}
@@ -130,12 +130,12 @@
 <style>
   .lines path {
     fill: none;
-    stroke: var(--muted);
+    stroke: var(--dim);
     stroke-width: 0.7px;
     vector-effect: non-scaling-stroke;
   }
   .arrows path {
-    fill: var(--muted);
+    fill: var(--dim);
   }
   .former {
     fill: #d9d6cc;
@@ -148,7 +148,7 @@
   }
   .cut,
   .hair {
-    stroke: var(--ink);
+    stroke: var(--fg);
     stroke-width: 1px;
     pointer-events: none;
   }
@@ -159,12 +159,10 @@
     opacity: 0.45;
   }
   .readout {
-    margin: 4px 0 0;
-    min-height: 1.4em;
-    font-variant-numeric: tabular-nums;
+    flex: none;
   }
   .readout b {
-    color: var(--ink);
+    color: var(--fg);
   }
   /* fixed-width numbers: the line does not shift while the pointer moves */
   .n {
