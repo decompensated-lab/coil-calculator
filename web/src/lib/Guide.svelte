@@ -4,7 +4,7 @@
 <script lang="ts">
   import { GUIDE_HTML } from './help';
 
-  const REPO = 'https://github.com/ivan-galinskiy/coil-calculator';
+  const REPO = 'https://github.com/decompensated-lab/coil-calculator';
   // the deploy workflow sets VITE_COMMIT to the commit it builds
   const commit: string | undefined = import.meta.env.VITE_COMMIT;
 

@@ -1,6 +1,6 @@
 # coilcal: the browser app
 
-**<https://ivan-galinskiy.github.io/coil-calculator/>**
+**<https://decompensated-lab.github.io/coil-calculator/>**
 
 The same app as the Qt GUI in [`../python/`](../python/), running in the browser with no
 server: the model is ported to Rust and compiled to WebAssembly, and the interface is a

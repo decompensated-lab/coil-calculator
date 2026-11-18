@@ -18,8 +18,8 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/ivan-galinskiy/coil-calculator"
-"Browser app" = "https://ivan-galinskiy.github.io/coil-calculator/"
+Repository = "https://github.com/decompensated-lab/coil-calculator"
+"Browser app" = "https://decompensated-lab.github.io/coil-calculator/"
 
 [project.scripts]
 coilcal-gui = "coilcal.gui:main"

@@ -20,7 +20,7 @@ SI units throughout. Phasors are peak amplitudes.
 |---|---|---|
 | where | [`web/`](web/) | [`python/`](python/) |
 | what | the model ported to Rust, compiled to WebAssembly, under a Svelte dashboard; runs entirely in the browser, no server | the reference implementation: a typed Python library (`coilcal`) and a Qt GUI on top of it |
-| use it | open **<https://ivan-galinskiy.github.io/coil-calculator/>** | `cd python && uv sync && uv run coilcal-gui` |
+| use it | open **<https://decompensated-lab.github.io/coil-calculator/>** | `cd python && uv sync && uv run coilcal-gui` |
 | docs | [`web/README.md`](web/README.md) | [`python/README.md`](python/README.md) |
 
 Both show the same numbers and the same plots. The Python code is the reference: every Rust

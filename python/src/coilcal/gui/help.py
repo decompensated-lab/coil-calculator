@@ -177,7 +177,7 @@ routines ported from Magpylib and SciPy.</p>
 (empirical self-capacitance), Singer, Steinbigler and Weiss (charge simulation), and Ortner,
 Leitner and Slanovc (field of a current loop).</p>
 <p>Source code, the full list of references and all licences:
-<a href="https://github.com/ivan-galinskiy/coil-calculator">github.com/ivan-galinskiy/coil-calculator</a>.
+<a href="https://github.com/decompensated-lab/coil-calculator">github.com/decompensated-lab/coil-calculator</a>.
 coilcal is free software under the MIT licence and comes without warranty: check its
 predictions against a measurement before relying on them.</p>
 """
